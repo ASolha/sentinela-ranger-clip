@@ -1,7 +1,7 @@
-// content.js - Versão completa com botões de formatação de texto
+// content.js - Versão completa com botões de formatação de texto e botão flutuante
 function capturarLoginDoHTML() {
   const elementoLogin = document.querySelector('div.sc-title-subtitle-action__container p.sc-text');
-  
+
   if (elementoLogin) {
     const textoCompleto = elementoLogin.textContent || elementoLogin.innerText;
     const match = textoCompleto.match(/^([^|]+?)\s*\|\s*CPF/);
@@ -10,7 +10,7 @@ function capturarLoginDoHTML() {
     }
     return textoCompleto.trim();
   }
-  
+
   const textoCompleto = document.body.innerText;
   const loginMatch = textoCompleto.match(/([^\s|]+(?:\s+[^\s|]+)*)\s*\|\s*CPF\s*\d+/);
   return loginMatch ? loginMatch[1].trim() : '';
@@ -20,7 +20,7 @@ function capturarDados() {
   const textoCompleto = document.body.innerText;
   const url = window.location.href;
   const login = capturarLoginDoHTML();
-  
+
   let modelo = '';
   const padroesModelo = [
     /\*\*(\d+mm[^*\n]+)/,
@@ -28,7 +28,7 @@ function capturarDados() {
     /\*\*([^*]*\d+mm[^*\n]+)/,
     /Modelo:\s*([^\n]+)/i
   ];
-  
+
   for (const padrao of padroesModelo) {
     const match = textoCompleto.match(padrao);
     if (match) {
@@ -38,10 +38,10 @@ function capturarDados() {
       break;
     }
   }
-  
+
   const arosAvulsos = [];
   const padroesAro = textoCompleto.match(/Aro\s*-\s*([^\n|]+)/g);
-  
+
   if (padroesAro && padroesAro.length > 0) {
     padroesAro.forEach((match, index) => {
       const textoAro = match.replace(/Aro\s*-\s*/, '').trim();
@@ -64,12 +64,12 @@ function capturarDados() {
           }
         }
       }
-      
+
       let modeloAro = '';
       const linhas = textoCompleto.split('\n');
       for (let i = 0; i < linhas.length; i++) {
         if (linhas[i].includes(match)) {
-          for (let j = Math.max(0, i-3); j <= Math.min(linhas.length-1, i+3); j++) {
+          for (let j = Math.max(0, i - 3); j <= Math.min(linhas.length - 1, i + 3); j++) {
             const linhaBusca = linhas[j];
             for (const padrao of padroesModelo) {
               const matchModelo = linhaBusca.match(padrao);
@@ -85,7 +85,7 @@ function capturarDados() {
           break;
         }
       }
-      
+
       arosAvulsos.push({
         numero: numero + comPedra,
         modelo: modeloAro || modelo
@@ -101,7 +101,7 @@ function capturarDados() {
       const comPedra = /com\s+pedra/i.test(textoAro) ? ' com pedra' : '';
       aroMasculino = numero + comPedra;
     }
-    
+
     const aroFemininoMatch = textoCompleto.match(/Feminino\s*-\s*([^\n|]+)/);
     let aroFeminino = '';
     if (aroFemininoMatch) {
@@ -111,7 +111,7 @@ function capturarDados() {
       const comPedra = /com\s+pedra/i.test(textoAro) ? ' com pedra' : '';
       aroFeminino = numero + comPedra;
     }
-    
+
     if (aroMasculino || aroFeminino) {
       arosAvulsos.push({
         numero: aroMasculino,
@@ -125,7 +125,7 @@ function capturarDados() {
       });
     }
   }
-  
+
   return {
     login: login,
     modelo: modelo,
@@ -140,10 +140,10 @@ function formatarTextoParaCopia(dados) {
   const formatarAro = (numero, tipo, modeloEspecifico) => {
     const padrao = /^(\d+)\s*(.*)/;
     const [, num, resto] = numero.match(padrao) || [];
-    
+
     const temPedra = resto.toLowerCase().includes('com pedra');
     const complemento = resto.replace(/com\s+pedra/gi, '').trim();
-    
+
     return {
       numero: num,
       comPedra: temPedra ? ' com pedra' : '',
@@ -153,14 +153,23 @@ function formatarTextoParaCopia(dados) {
   };
 
   dados.aros.filter(a => a.tipo).forEach(aro => {
-    const { numero, comPedra, complemento } = formatarAro(aro.numero);
+    const {
+      numero,
+      comPedra,
+      complemento
+    } = formatarAro(aro.numero);
     texto += `${aro.tipo} ${numero}${comPedra} -     ${complemento}\n`;
   });
 
   const avulsos = dados.aros.filter(a => !a.tipo);
   avulsos.forEach((aro, i) => {
-    const { numero, comPedra, complemento, modelo } = formatarAro(aro.numero, null, aro.modelo);
-    
+    const {
+      numero,
+      comPedra,
+      complemento,
+      modelo
+    } = formatarAro(aro.numero, null, aro.modelo);
+
     if (i > 0) texto += '\n';
     texto += `Aro avulso ${i+1}\n`;
     if (modelo) texto += `Modelo ${modelo}\n`;
@@ -172,7 +181,7 @@ function formatarTextoParaCopia(dados) {
 
 function copiarDados(dados) {
   const textoFormatado = formatarTextoParaCopia(dados);
-  
+
   return navigator.clipboard.writeText(textoFormatado).then(() => {
     return true;
   }).catch(err => {
@@ -193,6 +202,7 @@ function copiarDados(dados) {
 }
 
 const STORAGE_KEY = 'extensao_dados_capturados';
+const BUTTON_POSITION_STORAGE_KEY = 'extensao_button_position';
 
 function salvarDados(dados) {
   try {
@@ -231,26 +241,26 @@ function inserirSimboloNoCursor(campo, simbolo) {
   const posicaoInicial = campo.selectionStart;
   const posicaoFinal = campo.selectionEnd;
   const valorAtual = campo.value;
-  
+
   const novoValor = valorAtual.substring(0, posicaoInicial) + simbolo + valorAtual.substring(posicaoFinal);
   campo.value = novoValor;
-  
+
   const novaPosicao = posicaoInicial + simbolo.length;
   campo.setSelectionRange(novaPosicao, novaPosicao);
-  
+
   campo.focus();
 }
 
 function formatarTextoPrimeiraMaiuscula(texto) {
   const partes = texto.split(' - ');
   if (partes.length < 2) return texto;
-  
+
   const textoParaFormatar = partes[1];
   const textoFormatado = textoParaFormatar.toLowerCase()
     .split(' ')
     .map(palavra => palavra.charAt(0).toUpperCase() + palavra.slice(1))
     .join(' ');
-  
+
   return `${partes[0]} - ${textoFormatado}`;
 }
 
@@ -265,13 +275,13 @@ function criarBotoesSimbolos() {
 
 function adicionarEventosBotoesSimbolos() {
   let campoAtivo = null;
-  
+
   document.addEventListener('focusin', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
       campoAtivo = e.target;
     }
   });
-  
+
   const btnCoracao = document.getElementById('btn-coracao');
   if (btnCoracao) {
     btnCoracao.addEventListener('click', () => {
@@ -279,7 +289,7 @@ function adicionarEventosBotoesSimbolos() {
         inserirSimboloNoCursor(campoAtivo, '♥');
       }
     });
-    
+
     btnCoracao.addEventListener('mouseenter', () => {
       btnCoracao.style.background = '#ff5252';
     });
@@ -287,7 +297,7 @@ function adicionarEventosBotoesSimbolos() {
       btnCoracao.style.background = '#ff6b6b';
     });
   }
-  
+
   const btnInfinito = document.getElementById('btn-infinito');
   if (btnInfinito) {
     btnInfinito.addEventListener('click', () => {
@@ -295,7 +305,7 @@ function adicionarEventosBotoesSimbolos() {
         inserirSimboloNoCursor(campoAtivo, '∞');
       }
     });
-    
+
     btnInfinito.addEventListener('mouseenter', () => {
       btnInfinito.style.background = '#339af0';
     });
@@ -314,7 +324,7 @@ function adicionarEventosBotoesSimbolos() {
       });
       mostrarNotificacao('Todos os textos foram formatados!');
     });
-    
+
     btnFormatarTudo.addEventListener('mouseenter', () => {
       btnFormatarTudo.style.background = '#5a6268';
     });
@@ -326,10 +336,10 @@ function adicionarEventosBotoesSimbolos() {
 
 function criarInterfaceAro(aro, index, isAvulso = false) {
   const tipoLabel = isAvulso ? `Aro Avulso ${index + 1}` : (aro.tipo || `Aro ${index + 1}`);
-  
+
   let html = `<div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9;">`;
   html += `<label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">${tipoLabel}:</label>`;
-  
+
   if (isAvulso && aro.modelo) {
     html += `<div style="margin-bottom: 10px;">`;
     html += `<label style="display: block; margin-bottom: 3px; font-size: 12px; color: #666;">Modelo:</label>`;
@@ -338,13 +348,13 @@ function criarInterfaceAro(aro, index, isAvulso = false) {
     </div>`;
     html += `</div>`;
   }
-  
+
   html += `<div style="display: flex; gap: 5px; align-items: center;">
     <input type="text" id="campo-aro-${index}" value="${aro.numero} - " style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
     <button class="btn-formatar" data-target="campo-aro-${index}" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 8px 10px; cursor: pointer; font-size: 14px;" title="Formatar texto">Aa</button>
   </div>`;
   html += `</div>`;
-  
+
   return html;
 }
 
@@ -353,21 +363,21 @@ function mostrarPopup() {
   if (popupExistente) {
     popupExistente.remove();
   }
-  
+
   let dados = carregarDados();
   const dadosCapturados = capturarDados();
-  
+
   dados = {
     login: dadosCapturados.login || dados.login,
     modelo: dadosCapturados.modelo || dados.modelo,
     aros: dadosCapturados.aros.length > 0 ? dadosCapturados.aros : dados.aros,
     url: dadosCapturados.url || dados.url
   };
-  
+
   salvarDados(dados);
-  
+
   const isAvulso = dados.aros.length > 0 && !dados.aros[0].tipo;
-  
+
   const container = document.createElement('div');
   container.id = 'extensao-popup-overlay';
   container.style.cssText = `
@@ -382,19 +392,19 @@ function mostrarPopup() {
     overflow-y: auto;
     font-family: Arial, sans-serif;
   `;
-  
+
   const popup = document.createElement('div');
   popup.style.cssText = `
     padding: 20px;
     height: 100%;
     box-sizing: border-box;
   `;
-  
+
   let arosHTML = '';
   dados.aros.forEach((aro, index) => {
     arosHTML += criarInterfaceAro(aro, index, isAvulso);
   });
-  
+
   if (dados.aros.length === 0) {
     arosHTML = `
       <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9;">
@@ -413,52 +423,52 @@ function mostrarPopup() {
       </div>
     `;
   }
-  
+
   popup.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #007cba; padding-bottom: 10px;">
       <h2 style="margin: 0; color: #007cba; font-size: 18px;">Capturador de Dados</h2>
       <button id="fechar-popup" style="background: #ff4444; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-size: 14px;">✕</button>
     </div>
-    
+
     ${criarBotoesSimbolos()}
-    
+
     <div style="margin-bottom: 15px;">
       <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Login:</label>
       <div style="display: flex; gap: 5px; align-items: center;">
         <input type="text" id="campo-login" value="${dados.login}" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
       </div>
     </div>
-    
-    ${(!isAvulso || !dados.aros.some(aro => aro.modelo)) ? 
-      `<div style="margin-bottom: 15px;">
+
+    ${(!isAvulso || !dados.aros.some(aro => aro.modelo)) ?
+    `<div style="margin-bottom: 15px;">
         <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Modelo da Aliança:</label>
         <div style="display: flex; gap: 5px; align-items: flex-start;">
           <textarea id="campo-modelo" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px; min-height: 60px; resize: vertical;">${dados.modelo}</textarea>
         </div>
-      </div>` 
-      : ''}
-    
+      </div>` :
+    ''}
+
     ${arosHTML}
-    
+
     <div style="margin-bottom: 20px;">
       <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">URL Atual:</label>
       <textarea id="campo-url" readonly style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 12px; min-height: 40px; background: #f5f5f5; resize: vertical;">${dados.url}</textarea>
     </div>
-    
+
     <div style="display: flex; flex-direction: column; gap: 10px;">
       <button id="copiar-dados" style="background: #4CAF50; color: white; border: none; border-radius: 5px; padding: 10px; cursor: pointer; font-size: 14px;">📋 Copiar e Fechar</button>
     </div>
-    
+
     <div style="margin-top: 15px; padding: 10px; background: #e8f4fd; border-radius: 5px; font-size: 12px; color: #0056b3;">
       💡 <strong>Dica:</strong> Os dados foram automaticamente copiados ao abrir. Você pode editar e copiar novamente quando quiser. Use os botões ♥, ∞ e Aa para formatar os textos.
     </div>
   `;
-  
+
   container.appendChild(popup);
   document.body.appendChild(container);
-  
+
   adicionarEventosBotoesSimbolos();
-  
+
   document.querySelectorAll('.btn-formatar').forEach(btn => {
     btn.addEventListener('click', () => {
       const targetId = btn.getAttribute('data-target');
@@ -469,16 +479,16 @@ function mostrarPopup() {
       }
     });
   });
-  
+
   document.getElementById('fechar-popup').addEventListener('click', () => {
     limparDadosSalvos();
     container.remove();
   });
-  
+
   document.getElementById('copiar-dados').addEventListener('click', () => {
     const dadosParaCopiar = coletarDadosDaInterface(dados);
     const textoFormatado = formatarTextoParaCopia(dadosParaCopiar);
-    
+
     navigator.clipboard.writeText(textoFormatado).then(() => {
       limparDadosSalvos();
       container.remove();
@@ -499,12 +509,12 @@ function coletarDadosDaInterface(dadosOriginais) {
   const login = document.getElementById('campo-login')?.value || '';
   const modelo = document.getElementById('campo-modelo')?.value || '';
   const url = document.getElementById('campo-url')?.value || '';
-  
+
   const aros = [];
   dadosOriginais.aros.forEach((aro, index) => {
     const campoAro = document.getElementById(`campo-aro-${index}`);
     const campoModeloAro = document.getElementById(`campo-modelo-aro-${index}`);
-    
+
     if (campoAro) {
       const novoAro = {
         numero: campoAro.value.replace(' - ', '').trim(),
@@ -514,11 +524,11 @@ function coletarDadosDaInterface(dadosOriginais) {
       aros.push(novoAro);
     }
   });
-  
+
   if (dadosOriginais.aros.length === 0) {
     const campoMasc = document.getElementById('campo-aro-0');
     const campoFem = document.getElementById('campo-aro-1');
-    
+
     if (campoMasc) {
       aros.push({
         numero: campoMasc.value.replace(' - ', '').trim(),
@@ -526,7 +536,7 @@ function coletarDadosDaInterface(dadosOriginais) {
         modelo: ''
       });
     }
-    
+
     if (campoFem) {
       aros.push({
         numero: campoFem.value.replace(' - ', '').trim(),
@@ -535,7 +545,7 @@ function coletarDadosDaInterface(dadosOriginais) {
       });
     }
   }
-  
+
   return {
     login,
     modelo,
@@ -549,7 +559,7 @@ function mostrarNotificacao(mensagem, tipo = 'success') {
   if (notificacaoExistente) {
     notificacaoExistente.remove();
   }
-  
+
   const notificacao = document.createElement('div');
   notificacao.id = 'extensao-notificacao';
   notificacao.style.cssText = `
@@ -568,15 +578,15 @@ function mostrarNotificacao(mensagem, tipo = 'success') {
     transform: translateY(-20px);
     transition: all 0.3s ease;
   `;
-  
+
   notificacao.textContent = mensagem;
   document.body.appendChild(notificacao);
-  
+
   setTimeout(() => {
     notificacao.style.opacity = '1';
     notificacao.style.transform = 'translateY(0)';
   }, 10);
-  
+
   setTimeout(() => {
     notificacao.style.opacity = '0';
     notificacao.style.transform = 'translateY(-20px)';
@@ -588,12 +598,165 @@ function mostrarNotificacao(mensagem, tipo = 'success') {
   }, 3000);
 }
 
+// ===============================================
+// Lógica para o botão flutuante e interações
+// ===============================================
+
+function createFloatingButton() {
+  const button = document.createElement('button');
+  button.id = 'extensao-floating-button';
+  button.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #007cba;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    z-index: 9999;
+    transition: background 0.2s;
+  `;
+  button.innerHTML = '📋'; // Clipboard icon
+
+  const handle = document.createElement('div');
+  handle.id = 'extensao-button-handle';
+  handle.style.cssText = `
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #333;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.2s;
+  `;
+  handle.innerHTML = '&#x22EF;'; // Three dots vertical
+
+  button.appendChild(handle);
+  document.body.appendChild(button);
+
+  let isDragging = false;
+  let offsetX, offsetY;
+
+  // Show handle on hover
+  button.addEventListener('mouseenter', () => {
+    handle.style.opacity = '1';
+  });
+
+  button.addEventListener('mouseleave', () => {
+    if (!isDragging) {
+      handle.style.opacity = '0';
+    }
+  });
+
+  handle.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    handle.style.cursor = 'grabbing';
+    offsetX = e.clientX - button.getBoundingClientRect().left;
+    offsetY = e.clientY - button.getBoundingClientRect().top;
+    button.style.transition = 'none'; // Disable transition during drag
+    e.preventDefault(); // Prevent text selection
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+
+    let newLeft = e.clientX - offsetX;
+    let newTop = e.clientY - offsetY;
+
+    // Boundary checks to keep button within viewport
+    newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - button.offsetWidth));
+    newTop = Math.max(0, Math.min(newTop, window.innerHeight - button.offsetHeight));
+
+    button.style.left = `${newLeft}px`;
+    button.style.top = `${newTop}px`;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      handle.style.cursor = 'grab';
+      button.style.transition = 'background 0.2s, top 0.2s, left 0.2s'; // Re-enable transition
+
+      // Save position to Chrome local storage
+      const position = {
+        left: button.style.left,
+        top: button.style.top
+      };
+      chrome.storage.local.set({
+        [BUTTON_POSITION_STORAGE_KEY]: position
+      });
+    }
+  });
+
+  button.addEventListener('click', (e) => {
+    // Only trigger action if not dragging (to prevent accidental clicks after drag)
+    if (!isDragging) {
+      // Check if the click originated from the button itself and not the handle
+      if (e.target === button || e.target.id === 'extensao-floating-button') {
+        limparDadosSalvos();
+        const dados = capturarDados();
+
+        copiarDados(dados).then(success => {
+          if (success) {
+            mostrarNotificacao('Dados copiados automaticamente!');
+          }
+        }).catch(() => {
+          mostrarNotificacao('Dados capturados, mas erro ao copiar automaticamente', 'error');
+        });
+
+        mostrarPopup();
+      }
+    }
+  });
+
+  // Load saved position
+  chrome.storage.local.get([BUTTON_POSITION_STORAGE_KEY], (result) => {
+    if (result[BUTTON_POSITION_STORAGE_KEY]) {
+      button.style.left = result[BUTTON_POSITION_STORAGE_KEY].left;
+      button.style.top = result[BUTTON_POSITION_STORAGE_KEY].top;
+      button.style.right = 'auto'; // Disable right/bottom if left/top are set
+      button.style.bottom = 'auto';
+    }
+  });
+}
+
+// Check if current URL is Mercado Livre
+if (window.location.hostname.includes('mercadolivre.com.br') || window.location.hostname.includes('mercadolibre.com')) {
+  window.addEventListener('load', () => {
+    createFloatingButton();
+    const dadosSalvos = carregarDados();
+    if ((dadosSalvos.login || dadosSalvos.modelo || dadosSalvos.aros.length > 0) && !document.getElementById('extensao-popup-overlay')) {
+      setTimeout(() => {
+        mostrarPopup();
+      }, 1000);
+    }
+  });
+}
+
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'capturar_e_copiar') {
     try {
       limparDadosSalvos();
       const dados = capturarDados();
-      
+
       copiarDados(dados).then(success => {
         if (success) {
           mostrarNotificacao('Dados copiados automaticamente!');
@@ -601,27 +764,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }).catch(() => {
         mostrarNotificacao('Dados capturados, mas erro ao copiar automaticamente', 'error');
       });
-      
+
       mostrarPopup();
-      
-      sendResponse({success: true});
-      
+
+      sendResponse({
+        success: true
+      });
+
     } catch (error) {
       console.error('Erro ao capturar dados:', error);
       mostrarNotificacao('Erro ao capturar dados da página', 'error');
-      sendResponse({success: false, error: error.message});
+      sendResponse({
+        success: false,
+        error: error.message
+      });
     }
-    
-    return true;
-  }
-});
 
-window.addEventListener('load', () => {
-  const dadosSalvos = carregarDados();
-  if ((dadosSalvos.login || dadosSalvos.modelo || dadosSalvos.aros.length > 0) && !document.getElementById('extensao-popup-overlay')) {
-    setTimeout(() => {
-      mostrarPopup();
-    }, 1000);
+    return true;
   }
 });
 

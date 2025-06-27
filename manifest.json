@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Sentinela Ranger - Clip",
-  "version": "3.0",
+  "version": "3.1",
   "description": "Captura informações de login, modelo de aliança e aros",
   "icons": {
     "16": "icon1.png",
@@ -11,7 +11,8 @@
   },
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "storage"
   ],
   "action": {
     "default_title": "Capturar e Copiar Dados",
