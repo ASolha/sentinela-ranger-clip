@@ -158,7 +158,8 @@ function formatarTextoParaCopia(dados) {
       comPedra,
       complemento
     } = formatarAro(aro.numero);
-    texto += `${aro.tipo} ${numero}${comPedra} -     ${complemento}\n`;
+    // Alterado para usar 20 espaços após o hífen
+    texto += `${aro.tipo} ${numero}${comPedra} -                    ${complemento}\n`;
   });
 
   const avulsos = dados.aros.filter(a => !a.tipo);
@@ -173,7 +174,8 @@ function formatarTextoParaCopia(dados) {
     if (i > 0) texto += '\n';
     texto += `Aro avulso ${i+1}\n`;
     if (modelo) texto += `Modelo ${modelo}\n`;
-    texto += `${numero}${comPedra} -     ${complemento}\n`;
+    // Alterado para usar 20 espaços após o hífen
+    texto += `${numero}${comPedra} -                    ${complemento}\n`;
   });
 
   return texto + `\n${dados.login}`;
