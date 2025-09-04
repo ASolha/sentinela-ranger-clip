@@ -1,4 +1,4 @@
-// content.js - Versão com botão para recapturar dados
+// content.js - Versão completa com botões de formatação de texto e botão flutuante
 function capturarLoginDoHTML() {
   const elementoLogin = document.querySelector('div.sc-title-subtitle-action__container p.sc-text');
 
@@ -181,25 +181,47 @@ function formatarTextoParaCopia(dados) {
   return texto + `\n${dados.login}`;
 }
 
-const SESSION_STORAGE_KEY = 'extensao_dados_capturados_sessao';
+function copiarDados(dados) {
+  const textoFormatado = formatarTextoParaCopia(dados);
+
+  return navigator.clipboard.writeText(textoFormatado).then(() => {
+    return true;
+  }).catch(err => {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = textoFormatado;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return success;
+    } catch (e) {
+      return false;
+    }
+  });
+}
+
+const STORAGE_KEY = 'extensao_dados_capturados';
 const BUTTON_POSITION_STORAGE_KEY = 'extensao_button_position';
 
 function salvarDados(dados) {
   try {
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(dados));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
   } catch (e) {
-    console.error('Erro ao salvar dados na sessão:', e);
+    console.error('Erro ao salvar dados:', e);
   }
 }
 
 function carregarDados() {
   try {
-    const dadosSalvos = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    const dadosSalvos = localStorage.getItem(STORAGE_KEY);
     if (dadosSalvos) {
       return JSON.parse(dadosSalvos);
     }
   } catch (e) {
-    console.error('Erro ao carregar dados da sessão:', e);
+    console.error('Erro ao carregar dados:', e);
   }
   return {
     login: '',
@@ -211,9 +233,9 @@ function carregarDados() {
 
 function limparDadosSalvos() {
   try {
-    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
   } catch (e) {
-    console.error('Erro ao limpar dados da sessão:', e);
+    console.error('Erro ao limpar dados:', e);
   }
 }
 
@@ -344,7 +366,17 @@ function mostrarPopup() {
     popupExistente.remove();
   }
 
-  const dados = carregarDados(); // Apenas carrega os dados já salvos na sessão
+  let dados = carregarDados();
+  const dadosCapturados = capturarDados();
+
+  dados = {
+    login: dadosCapturados.login || dados.login,
+    modelo: dadosCapturados.modelo || dados.modelo,
+    aros: dadosCapturados.aros.length > 0 ? dadosCapturados.aros : dados.aros,
+    url: dadosCapturados.url || dados.url
+  };
+
+  salvarDados(dados);
 
   const isAvulso = dados.aros.length > 0 && !dados.aros[0].tipo;
 
@@ -421,17 +453,16 @@ function mostrarPopup() {
     ${arosHTML}
 
     <div style="margin-bottom: 20px;">
-      <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">URL Capturada:</label>
+      <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">URL Atual:</label>
       <textarea id="campo-url" readonly style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 12px; min-height: 40px; background: #f5f5f5; resize: vertical;">${dados.url}</textarea>
     </div>
 
     <div style="display: flex; flex-direction: column; gap: 10px;">
-      <button id="recapturar-dados" style="background: #f0ad4e; color: white; border: none; border-radius: 5px; padding: 10px; cursor: pointer; font-size: 14px;">🔄 Recapturar Dados</button>
       <button id="copiar-dados" style="background: #4CAF50; color: white; border: none; border-radius: 5px; padding: 10px; cursor: pointer; font-size: 14px;">📋 Copiar e Fechar</button>
     </div>
 
     <div style="margin-top: 15px; padding: 10px; background: #e8f4fd; border-radius: 5px; font-size: 12px; color: #0056b3;">
-      💡 <strong>Dica:</strong> Os dados foram capturados na primeira página. Edite-os aqui e copie quando estiver pronto.
+      💡 <strong>Dica:</strong> Os dados foram automaticamente copiados ao abrir. Você pode editar e copiar novamente quando quiser. Use os botões ♥, ∞ e Aa para formatar os textos.
     </div>
   `;
 
@@ -452,29 +483,16 @@ function mostrarPopup() {
   });
 
   document.getElementById('fechar-popup').addEventListener('click', () => {
-    container.remove(); // Apenas fecha o popup, não limpa os dados da sessão
+    limparDadosSalvos();
+    container.remove();
   });
-
-  // --- NOVO EVENTO PARA RECAPTURAR DADOS ---
-  document.getElementById('recapturar-dados').addEventListener('click', () => {
-    const popupOverlay = document.getElementById('extensao-popup-overlay');
-    if (popupOverlay) {
-      popupOverlay.remove();
-    }
-    const novosDados = capturarDados();
-    salvarDados(novosDados);
-    mostrarPopup(); // Reabre o popup com os novos dados
-    mostrarNotificacao('Dados da página foram recapturados!');
-  });
-
 
   document.getElementById('copiar-dados').addEventListener('click', () => {
     const dadosParaCopiar = coletarDadosDaInterface(dados);
     const textoFormatado = formatarTextoParaCopia(dadosParaCopiar);
 
     navigator.clipboard.writeText(textoFormatado).then(() => {
-      mostrarNotificacao('Dados copiados com sucesso!');
-      limparDadosSalvos(); // Limpa os dados após copiar
+      limparDadosSalvos();
       container.remove();
     }).catch(err => {
       const textarea = document.createElement('textarea');
@@ -483,8 +501,7 @@ function mostrarPopup() {
       textarea.select();
       document.execCommand('copy');
       document.body.removeChild(textarea);
-      mostrarNotificacao('Dados copiados com sucesso!');
-      limparDadosSalvos(); // Limpa os dados após copiar
+      limparDadosSalvos();
       container.remove();
     });
   });
@@ -496,44 +513,40 @@ function coletarDadosDaInterface(dadosOriginais) {
   const url = document.getElementById('campo-url')?.value || '';
 
   const aros = [];
-  if (dadosOriginais.aros.length > 0) {
-    dadosOriginais.aros.forEach((aro, index) => {
-      const campoAro = document.getElementById(`campo-aro-${index}`);
-      const campoModeloAro = document.getElementById(`campo-modelo-aro-${index}`);
+  dadosOriginais.aros.forEach((aro, index) => {
+    const campoAro = document.getElementById(`campo-aro-${index}`);
+    const campoModeloAro = document.getElementById(`campo-modelo-aro-${index}`);
 
-      if (campoAro) {
-        const novoAro = {
-          numero: campoAro.value.startsWith(`${aro.numero} - `) ?
-            aro.numero + ' ' + campoAro.value.split(' - ')[1] :
-            campoAro.value,
-          tipo: aro.tipo,
-          modelo: campoModeloAro ? campoModeloAro.value : aro.modelo
-        };
-        aros.push(novoAro);
-      }
-    });
-  } else {
-    // Caso especial para quando não há aros capturados e a interface é gerada manualmente
+    if (campoAro) {
+      const novoAro = {
+        numero: campoAro.value.replace(' - ', '').trim(),
+        tipo: aro.tipo,
+        modelo: campoModeloAro ? campoModeloAro.value : aro.modelo
+      };
+      aros.push(novoAro);
+    }
+  });
+
+  if (dadosOriginais.aros.length === 0) {
     const campoMasc = document.getElementById('campo-aro-0');
     const campoFem = document.getElementById('campo-aro-1');
 
-    if (campoMasc && campoMasc.value.trim() !== '-') {
+    if (campoMasc) {
       aros.push({
         numero: campoMasc.value.replace(' - ', '').trim(),
         tipo: 'Masculino',
-        modelo: modelo // Usa o modelo principal
+        modelo: ''
       });
     }
 
-    if (campoFem && campoFem.value.trim() !== '-') {
+    if (campoFem) {
       aros.push({
         numero: campoFem.value.replace(' - ', '').trim(),
         tipo: 'Feminino',
-        modelo: modelo // Usa o modelo principal
+        modelo: ''
       });
     }
   }
-
 
   return {
     login,
@@ -695,9 +708,23 @@ function createFloatingButton() {
   });
 
   button.addEventListener('click', (e) => {
-    // Ação principal: Apenas abrir o popup com os dados já capturados
-    if (!isDragging && e.target !== handle) {
-      mostrarPopup();
+    // Only trigger action if not dragging (to prevent accidental clicks after drag)
+    if (!isDragging) {
+      // Check if the click originated from the button itself and not the handle
+      if (e.target === button || e.target.id === 'extensao-floating-button') {
+        limparDadosSalvos();
+        const dados = capturarDados();
+
+        copiarDados(dados).then(success => {
+          if (success) {
+            mostrarNotificacao('Dados copiados automaticamente!');
+          }
+        }).catch(() => {
+          mostrarNotificacao('Dados capturados, mas erro ao copiar automaticamente', 'error');
+        });
+
+        mostrarPopup();
+      }
     }
   });
 
@@ -712,46 +739,53 @@ function createFloatingButton() {
   });
 }
 
-// ===============================================
-// Lógica Principal de Execução
-// ===============================================
+// Check if current URL is Mercado Livre
 if (window.location.hostname.includes('mercadolivre.com.br') || window.location.hostname.includes('mercadolibre.com')) {
   window.addEventListener('load', () => {
-    // Cria o botão flutuante em todas as páginas relevantes
     createFloatingButton();
-
-    // Verifica se os dados já foram capturados nesta sessão da aba
-    const dadosJaSalvos = carregarDados();
-    
-    // Captura e salva os dados apenas se não houver nada salvo na sessão da aba
-    if (!dadosJaSalvos || !dadosJaSalvos.url) {
-      const dadosPagina = capturarDados();
-      // Só salva se tiver capturado um login ou um modelo, para evitar salvar em páginas erradas
-      if (dadosPagina.login || dadosPagina.modelo) {
-        salvarDados(dadosPagina);
-        mostrarNotificacao('Dados da página capturados em segundo plano!');
-      }
+    const dadosSalvos = carregarDados();
+    if ((dadosSalvos.login || dadosSalvos.modelo || dadosSalvos.aros.length > 0) && !document.getElementById('extensao-popup-overlay')) {
+      setTimeout(() => {
+        mostrarPopup();
+      }, 1000);
     }
   });
 }
 
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'capturar_e_copiar') { // Esta ação agora apenas abre o popup
+  if (request.action === 'capturar_e_copiar') {
     try {
+      limparDadosSalvos();
+      const dados = capturarDados();
+
+      copiarDados(dados).then(success => {
+        if (success) {
+          mostrarNotificacao('Dados copiados automaticamente!');
+        }
+      }).catch(() => {
+        mostrarNotificacao('Dados capturados, mas erro ao copiar automaticamente', 'error');
+      });
+
       mostrarPopup();
+
       sendResponse({
         success: true
       });
+
     } catch (error) {
-      console.error('Erro ao mostrar o popup:', error);
-      mostrarNotificacao('Erro ao abrir a interface', 'error');
+      console.error('Erro ao capturar dados:', error);
+      mostrarNotificacao('Erro ao capturar dados da página', 'error');
       sendResponse({
         success: false,
         error: error.message
       });
     }
 
-    return true; // Indica resposta assíncrona
+    return true;
   }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  capturarDados();
 });
