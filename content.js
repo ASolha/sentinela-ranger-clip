@@ -1,4 +1,4 @@
-// content.js - Versão com botão para recapturar dados
+// content.js - Versão com atualização automática de URL
 function capturarLoginDoHTML() {
   const elementoLogin = document.querySelector('div.sc-title-subtitle-action__container p.sc-text');
 
@@ -192,6 +192,29 @@ function salvarDados(dados) {
   }
 }
 
+// NOVA FUNÇÃO: Atualizar apenas o URL mantendo os outros dados
+function atualizarApenasURL(novoURL) {
+  try {
+    const dadosExistentes = carregarDados();
+    if (dadosExistentes && (dadosExistentes.login || dadosExistentes.modelo)) {
+      dadosExistentes.url = novoURL;
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(dadosExistentes));
+      
+      // Atualiza o campo URL no popup se estiver aberto
+      const campoURL = document.getElementById('campo-url');
+      if (campoURL) {
+        campoURL.value = novoURL;
+      }
+      
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.error('Erro ao atualizar URL:', e);
+    return false;
+  }
+}
+
 function carregarDados() {
   try {
     const dadosSalvos = sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -259,6 +282,37 @@ function adicionarEventosBotoesSimbolos() {
   document.addEventListener('focusin', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
       campoAtivo = e.target;
+    }
+  });
+
+  // NOVA FUNCIONALIDADE: Substituir corações ao colar
+  document.addEventListener('paste', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      // Aguarda um pouco para o conteúdo ser colado
+      setTimeout(() => {
+        const campo = e.target;
+        const valorOriginal = campo.value;
+        
+        // Lista de diferentes tipos de coração que devem ser substituídos
+        const coracoes = [
+          '❤️', '♥️','💗', '💕', '💖', '💘', '💝', '💞', '💟', 
+          '♡', '🖤', '🤍', '🤎', '💜', '💛', '💚', '💙',
+          '❣️', '💓', '💔', '❤', '🧡'
+        ];
+        
+        let valorNovo = valorOriginal;
+        
+        // Substitui todos os tipos de coração pelo coração do botão
+        coracoes.forEach(coracao => {
+          valorNovo = valorNovo.replace(new RegExp(coracao, 'g'), '♥');
+        });
+        
+        // Se houve mudança, atualiza o campo e mostra notificação
+        if (valorNovo !== valorOriginal) {
+          campo.value = valorNovo;
+          mostrarNotificacaoCoracao('Corações convertidos automaticamente!');
+        }
+      }, 50);
     }
   });
 
@@ -431,7 +485,7 @@ function mostrarPopup() {
     </div>
 
     <div style="margin-top: 15px; padding: 10px; background: #e8f4fd; border-radius: 5px; font-size: 12px; color: #0056b3;">
-      💡 <strong>Dica:</strong> Os dados foram capturados na primeira página. Edite-os aqui e copie quando estiver pronto.
+      💡 <strong>Dica:</strong> O URL é atualizado automaticamente ao navegar. Use "Recapturar Dados" para atualizar login/modelo/aros.
     </div>
   `;
 
@@ -713,12 +767,130 @@ function createFloatingButton() {
 }
 
 // ===============================================
+// NOVA FUNCIONALIDADE: Monitoramento de mudanças de URL
+// ===============================================
+
+let urlAtual = window.location.href;
+
+function monitorarMudancasURL() {
+  // Verifica mudanças de URL a cada 500ms
+  setInterval(() => {
+    const novaURL = window.location.href;
+    if (novaURL !== urlAtual) {
+      urlAtual = novaURL;
+      
+      // Só atualiza o URL se já tiver dados salvos na sessão
+      const dadosExistentes = carregarDados();
+      if (dadosExistentes && (dadosExistentes.login || dadosExistentes.modelo)) {
+        const foiAtualizado = atualizarApenasURL(novaURL);
+        if (foiAtualizado) {
+          console.log('URL atualizado automaticamente:', novaURL);
+          // Mostra uma pequena notificação discreta
+          mostrarNotificacaoURL('URL atualizado');
+        }
+      }
+    }
+  }, 500);
+}
+
+function mostrarNotificacaoCoracao(mensagem) {
+  const notificacaoExistente = document.getElementById('extensao-notificacao-coracao');
+  if (notificacaoExistente) {
+    notificacaoExistente.remove();
+  }
+
+  const notificacao = document.createElement('div');
+  notificacao.id = 'extensao-notificacao-coracao';
+  notificacao.style.cssText = `
+    position: fixed;
+    top: 60px;
+    right: 20px;
+    background: #ff6b6b;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    z-index: 10001;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    opacity: 0;
+    transform: translateX(20px);
+    transition: all 0.3s ease;
+  `;
+
+  notificacao.innerHTML = `♥ ${mensagem}`;
+  document.body.appendChild(notificacao);
+
+  setTimeout(() => {
+    notificacao.style.opacity = '1';
+    notificacao.style.transform = 'translateX(0)';
+  }, 10);
+
+  setTimeout(() => {
+    notificacao.style.opacity = '0';
+    notificacao.style.transform = 'translateX(20px)';
+    setTimeout(() => {
+      if (notificacao.parentNode) {
+        notificacao.remove();
+      }
+    }, 300);
+  }, 2000);
+}
+
+function mostrarNotificacaoURL(mensagem) {
+  const notificacaoExistente = document.getElementById('extensao-notificacao-url');
+  if (notificacaoExistente) {
+    notificacaoExistente.remove();
+  }
+
+  const notificacao = document.createElement('div');
+  notificacao.id = 'extensao-notificacao-url';
+  notificacao.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #17a2b8;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    z-index: 10001;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    opacity: 0;
+    transform: translateX(20px);
+    transition: all 0.3s ease;
+  `;
+
+  notificacao.textContent = mensagem;
+  document.body.appendChild(notificacao);
+
+  setTimeout(() => {
+    notificacao.style.opacity = '1';
+    notificacao.style.transform = 'translateX(0)';
+  }, 10);
+
+  setTimeout(() => {
+    notificacao.style.opacity = '0';
+    notificacao.style.transform = 'translateX(20px)';
+    setTimeout(() => {
+      if (notificacao.parentNode) {
+        notificacao.remove();
+      }
+    }, 300);
+  }, 1500);
+}
+
+// ===============================================
 // Lógica Principal de Execução
 // ===============================================
 if (window.location.hostname.includes('mercadolivre.com.br') || window.location.hostname.includes('mercadolibre.com')) {
   window.addEventListener('load', () => {
     // Cria o botão flutuante em todas as páginas relevantes
     createFloatingButton();
+    
+    // Inicia o monitoramento de mudanças de URL
+    monitorarMudancasURL();
 
     // Verifica se os dados já foram capturados nesta sessão da aba
     const dadosJaSalvos = carregarDados();
@@ -730,6 +902,11 @@ if (window.location.hostname.includes('mercadolivre.com.br') || window.location.
       if (dadosPagina.login || dadosPagina.modelo) {
         salvarDados(dadosPagina);
         mostrarNotificacao('Dados da página capturados em segundo plano!');
+      }
+    } else {
+      // Se já tem dados salvos, apenas atualiza o URL se for diferente
+      if (dadosJaSalvos.url !== window.location.href) {
+        atualizarApenasURL(window.location.href);
       }
     }
   });
