@@ -332,8 +332,8 @@ function adicionarEventosBotoesSimbolos() {
   const btnFormatarTudo = document.getElementById('btn-formatar-tudo');
   if (btnFormatarTudo) {
     btnFormatarTudo.addEventListener('click', () => {
-      document.querySelectorAll('input[type="text"], textarea').forEach(campo => {
-        if (campo.id !== 'campo-url') {
+      document.querySelectorAll('input[type="text"]').forEach(campo => {
+        if (campo.id && campo.id.startsWith('campo-valor-')) {
           campo.value = formatarTextoPrimeiraMaiuscula(campo.value);
         }
       });
@@ -350,7 +350,7 @@ function adicionarEventosBotoesSimbolos() {
 }
 
 function criarInterfaceAro(aro, index, isAvulso = false) {
-  const tipoLabel = isAvulso ? `AVL ${index + 1}` : (aro.tipo === 'Masculino' ? 'MASC' : aro.tipo === 'Feminino' ? 'FEM' : (aro.tipo || `ARO ${index + 1}`));
+  const tipoLabel = isAvulso ? `AVL ${index + 1}` : (aro.tipo || `ARO ${index + 1}`);
   const badgeColor = aro.tipo === 'Masculino' ? '#6366f1' : aro.tipo === 'Feminino' ? '#ec4899' : '#8b5cf6';
 
   let html = `<div style="margin-bottom: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.04);">`;
@@ -416,7 +416,7 @@ function mostrarPopup() {
   if (dados.aros.length === 0) {
     arosHTML = `
       <div style="margin-bottom: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.04);">
-        <span style="display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; letter-spacing: 1px; color: white; background: #6366f1; margin-bottom: 8px; text-transform: uppercase;">MASC</span>
+        <span style="display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; letter-spacing: 1px; color: white; background: #6366f1; margin-bottom: 8px; text-transform: uppercase;">Masculino</span>
         <div style="margin-bottom: 5px;">
           <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">ARO</label>
           <input type="text" id="campo-aro-0" value="" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
@@ -428,7 +428,7 @@ function mostrarPopup() {
         </div>
       </div>
       <div style="margin-bottom: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.04);">
-        <span style="display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; letter-spacing: 1px; color: white; background: #ec4899; margin-bottom: 8px; text-transform: uppercase;">FEM</span>
+        <span style="display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; letter-spacing: 1px; color: white; background: #ec4899; margin-bottom: 8px; text-transform: uppercase;">Feminino</span>
         <div style="margin-bottom: 5px;">
           <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">ARO</label>
           <input type="text" id="campo-aro-1" value="" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
