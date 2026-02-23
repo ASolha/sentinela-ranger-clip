@@ -168,6 +168,63 @@ function formatarTextoParaCopia(dados) {
 const SESSION_STORAGE_KEY = 'extensao_dados_capturados_sessao';
 const BUTTON_POSITION_STORAGE_KEY = 'extensao_button_position';
 
+// ===============================================
+// Fefrello API - Integração para criar cards
+// ===============================================
+const FEFRELLO_API_BASE = 'https://southamerica-east1-fefrello.cloudfunctions.net';
+const FEFRELLO_API_KEY = '708a34771f2659594502ed4b74cd634819a297d37e3fb2fa3cafdf826c286f16';
+const FEFRELLO_CONFIG_KEY = 'extensao_fefrello_config';
+const RESPONSAVEIS_FEFRELLO = ['Solha', 'Ti', 'Vitão', 'Brunão', 'Fe'];
+
+async function fefrelloFetch(endpoint, options = {}) {
+  const res = await fetch(`${FEFRELLO_API_BASE}${endpoint}`, {
+    ...options,
+    headers: {
+      'x-api-key': FEFRELLO_API_KEY,
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    }
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Erro na API Fefrello');
+  return json;
+}
+
+async function carregarBoards() {
+  const res = await fefrelloFetch('/listBoards');
+  return res.data;
+}
+
+async function carregarColunas(boardId) {
+  const res = await fefrelloFetch(`/listColumns?boardId=${boardId}`);
+  return res.data;
+}
+
+async function criarCardFefrello(boardId, columnId, title, description, responsible) {
+  const body = { boardId, columnId, title };
+  if (description) body.description = description;
+  if (responsible) body.responsible = responsible;
+  const res = await fefrelloFetch('/createCardEndpoint', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+  return res;
+}
+
+function salvarConfigFefrello(config) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ [FEFRELLO_CONFIG_KEY]: config }, resolve);
+  });
+}
+
+function carregarConfigFefrello() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([FEFRELLO_CONFIG_KEY], (result) => {
+      resolve(result[FEFRELLO_CONFIG_KEY] || null);
+    });
+  });
+}
+
 function salvarDados(dados) {
   try {
     sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(dados));
@@ -253,6 +310,7 @@ function criarBotoesSimbolos() {
       <button id="btn-coracao" type="button" style="width: 32px; height: 32px; background: transparent; color: #f472b6; border: 1px solid rgba(244,114,182,0.3); border-radius: 50%; cursor: pointer; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; justify-content: center;" title="Inserir coração">♥</button>
       <button id="btn-infinito" type="button" style="width: 32px; height: 32px; background: transparent; color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); border-radius: 50%; cursor: pointer; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; justify-content: center;" title="Inserir infinito">∞</button>
       <button id="btn-formatar-tudo" type="button" style="width: 32px; height: 32px; background: transparent; color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.15); border-radius: 50%; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center;" title="Formatar todos os textos">Aa</button>
+      <button id="btn-config-fefrello" type="button" style="width: 32px; height: 32px; background: transparent; color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.15); border-radius: 50%; cursor: pointer; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; justify-content: center;" title="Configurações Fefrello">⚙</button>
     </div>
   `;
 }
@@ -456,31 +514,68 @@ function mostrarPopup() {
         color: rgba(255,255,255,0.7) !important;
         background: rgba(255,255,255,0.08) !important;
       }
+      #extensao-popup-overlay select:focus {
+        border-color: rgba(99,102,241,0.5) !important;
+        box-shadow: 0 0 0 2px rgba(99,102,241,0.2) !important;
+      }
+      #extensao-popup-overlay select option {
+        background: #1a1a2e;
+        color: #fff;
+      }
     </style>
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
       ${criarBotoesSimbolos()}
       <button id="fechar-popup" style="width: 28px; height: 28px; background: transparent; color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.12); border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0;">✕</button>
     </div>
 
-    <div style="margin-bottom: 10px;">
-      <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">LOGIN</label>
-      <input type="text" id="campo-login" value="${dados.login}" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
+    <div id="conteudo-principal">
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">LOGIN</label>
+        <input type="text" id="campo-login" value="${dados.login}" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
+      </div>
+
+      ${(!isAvulso || !dados.aros.some(aro => aro.modelo)) ?
+      `<div style="margin-bottom: 10px;">
+          <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">MODELO</label>
+          <textarea id="campo-modelo" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none; max-height: 50px; resize: none; line-height: 1.4;">${dados.modelo}</textarea>
+        </div>` :
+      ''}
+
+      ${arosHTML}
+
+      <input type="hidden" id="campo-url" value="${dados.url}">
     </div>
 
-    ${(!isAvulso || !dados.aros.some(aro => aro.modelo)) ?
-    `<div style="margin-bottom: 10px;">
-        <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">MODELO</label>
-        <textarea id="campo-modelo" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none; max-height: 50px; resize: none; line-height: 1.4;">${dados.modelo}</textarea>
-      </div>` :
-    ''}
+    <div id="footer-principal" style="display: flex; gap: 6px; margin-top: 12px;">
+      <button id="recapturar-dados" style="flex: 0 0 auto; background: transparent; color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 12px; cursor: pointer; font-size: 11px; font-weight: 500; transition: all 0.2s;">Recapturar</button>
+      <button id="criar-card-fefrello" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 10px; padding: 10px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s; box-shadow: 0 2px 8px rgba(16,185,129,0.3);">Criar Card</button>
+      <button id="copiar-dados" style="flex: 1; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 10px; padding: 10px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s; box-shadow: 0 2px 8px rgba(99,102,241,0.3);">Copiar e Fechar</button>
+    </div>
 
-    ${arosHTML}
-
-    <input type="hidden" id="campo-url" value="${dados.url}">
-
-    <div style="display: flex; gap: 8px; margin-top: 12px;">
-      <button id="recapturar-dados" style="flex: 1; background: transparent; color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 10px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s;">Recapturar</button>
-      <button id="copiar-dados" style="flex: 2; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 10px; padding: 10px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; box-shadow: 0 2px 8px rgba(99,102,241,0.3);">Copiar e Fechar</button>
+    <div id="view-config-fefrello" style="display: none;">
+      <div style="margin-bottom: 14px;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.6);">Configurações Fefrello</span>
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">BOARD</label>
+        <select id="config-board" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none; cursor: pointer;">
+          <option value="">Carregando...</option>
+        </select>
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">LISTA (COLUNA)</label>
+        <select id="config-coluna" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none; cursor: pointer;" disabled>
+          <option value="">Selecione um board primeiro</option>
+        </select>
+      </div>
+      <div style="margin-bottom: 14px;">
+        <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">RESPONSÁVEL</label>
+        <select id="config-responsavel" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none; cursor: pointer;">
+          <option value="">Selecione...</option>
+          ${RESPONSAVEIS_FEFRELLO.map(r => `<option value="${r}">${r}</option>`).join('')}
+        </select>
+      </div>
+      <button id="salvar-config-fefrello" style="width: 100%; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 10px; padding: 10px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; box-shadow: 0 2px 8px rgba(99,102,241,0.3);">Salvar Configurações</button>
     </div>
   `;
 
@@ -568,6 +663,182 @@ function mostrarPopup() {
       container.remove();
     });
   });
+
+  // --- TOGGLE CONFIG FEFRELLO ---
+  const viewConfig = document.getElementById('view-config-fefrello');
+  const btnConfig = document.getElementById('btn-config-fefrello');
+  let configAberta = false;
+
+  if (btnConfig) {
+    btnConfig.addEventListener('click', async () => {
+      configAberta = !configAberta;
+      if (configAberta) {
+        btnConfig.style.background = 'rgba(255,255,255,0.15)';
+        btnConfig.style.color = '#fff';
+        // Esconder view principal (exceto header e footer) — mostra config
+        const conteudoPrincipal = document.getElementById('conteudo-principal');
+        const footerPrincipal = document.getElementById('footer-principal');
+        if (conteudoPrincipal) conteudoPrincipal.style.display = 'none';
+        if (footerPrincipal) footerPrincipal.style.display = 'none';
+        viewConfig.style.display = 'block';
+        // Carregar dados
+        await carregarDadosConfig();
+      } else {
+        btnConfig.style.background = 'transparent';
+        btnConfig.style.color = 'rgba(255,255,255,0.5)';
+        const conteudoPrincipal = document.getElementById('conteudo-principal');
+        const footerPrincipal = document.getElementById('footer-principal');
+        if (conteudoPrincipal) conteudoPrincipal.style.display = 'block';
+        if (footerPrincipal) footerPrincipal.style.display = 'flex';
+        viewConfig.style.display = 'none';
+      }
+    });
+
+    btnConfig.addEventListener('mouseenter', () => {
+      if (!configAberta) btnConfig.style.background = 'rgba(255,255,255,0.1)';
+    });
+    btnConfig.addEventListener('mouseleave', () => {
+      if (!configAberta) btnConfig.style.background = 'transparent';
+    });
+  }
+
+  async function carregarDadosConfig() {
+    const selectBoard = document.getElementById('config-board');
+    const selectColuna = document.getElementById('config-coluna');
+    const selectResponsavel = document.getElementById('config-responsavel');
+
+    const configSalva = await carregarConfigFefrello();
+
+    // Carregar boards
+    selectBoard.innerHTML = '<option value="">Carregando...</option>';
+    try {
+      const boards = await carregarBoards();
+      selectBoard.innerHTML = '<option value="">Selecione o board...</option>';
+      boards.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.id;
+        opt.textContent = b.name;
+        if (configSalva && configSalva.boardId === b.id) opt.selected = true;
+        selectBoard.appendChild(opt);
+      });
+
+      // Se tem board salvo, carregar colunas
+      if (configSalva && configSalva.boardId) {
+        await carregarColunasNoSelect(configSalva.boardId, configSalva.columnId);
+      }
+
+      // Se tem responsavel salvo
+      if (configSalva && configSalva.responsible) {
+        selectResponsavel.value = configSalva.responsible;
+      }
+    } catch (e) {
+      selectBoard.innerHTML = '<option value="">Erro ao carregar boards</option>';
+      mostrarNotificacao('Erro ao carregar boards: ' + e.message, 'error');
+    }
+
+    // Evento ao trocar board
+    selectBoard.addEventListener('change', async () => {
+      const boardId = selectBoard.value;
+      if (boardId) {
+        await carregarColunasNoSelect(boardId);
+      } else {
+        selectColuna.innerHTML = '<option value="">Selecione um board primeiro</option>';
+        selectColuna.disabled = true;
+      }
+    });
+  }
+
+  async function carregarColunasNoSelect(boardId, columnIdSalva) {
+    const selectColuna = document.getElementById('config-coluna');
+    selectColuna.innerHTML = '<option value="">Carregando...</option>';
+    selectColuna.disabled = true;
+    try {
+      const colunas = await carregarColunas(boardId);
+      selectColuna.innerHTML = '<option value="">Selecione a coluna...</option>';
+      colunas.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.title;
+        if (columnIdSalva && columnIdSalva === c.id) opt.selected = true;
+        selectColuna.appendChild(opt);
+      });
+      selectColuna.disabled = false;
+    } catch (e) {
+      selectColuna.innerHTML = '<option value="">Erro ao carregar colunas</option>';
+      mostrarNotificacao('Erro ao carregar colunas: ' + e.message, 'error');
+    }
+  }
+
+  // Salvar config
+  const salvarConfigBtn = document.getElementById('salvar-config-fefrello');
+  if (salvarConfigBtn) {
+    salvarConfigBtn.addEventListener('click', async () => {
+      const boardId = document.getElementById('config-board').value;
+      const columnId = document.getElementById('config-coluna').value;
+      const responsible = document.getElementById('config-responsavel').value;
+
+      if (!boardId || !columnId) {
+        mostrarNotificacao('Selecione board e coluna', 'error');
+        return;
+      }
+
+      await salvarConfigFefrello({ boardId, columnId, responsible });
+      mostrarNotificacao('Configurações salvas!');
+
+      // Voltar para view principal
+      configAberta = false;
+      btnConfig.style.background = 'transparent';
+      btnConfig.style.color = 'rgba(255,255,255,0.5)';
+      const conteudoPrincipal = document.getElementById('conteudo-principal');
+      const footerPrincipal = document.getElementById('footer-principal');
+      if (conteudoPrincipal) conteudoPrincipal.style.display = 'block';
+      if (footerPrincipal) footerPrincipal.style.display = 'flex';
+      viewConfig.style.display = 'none';
+    });
+  }
+
+  // --- CRIAR CARD FEFRELLO ---
+  const criarCardBtn = document.getElementById('criar-card-fefrello');
+  if (criarCardBtn) {
+    criarCardBtn.addEventListener('mouseenter', () => {
+      criarCardBtn.style.boxShadow = '0 4px 16px rgba(16,185,129,0.45)';
+      criarCardBtn.style.transform = 'translateY(-1px)';
+    });
+    criarCardBtn.addEventListener('mouseleave', () => {
+      criarCardBtn.style.boxShadow = '0 2px 8px rgba(16,185,129,0.3)';
+      criarCardBtn.style.transform = 'translateY(0)';
+    });
+
+    criarCardBtn.addEventListener('click', async () => {
+      const config = await carregarConfigFefrello();
+      if (!config || !config.boardId || !config.columnId) {
+        mostrarNotificacao('Configure o Fefrello primeiro (⚙)', 'error');
+        return;
+      }
+
+      const dadosParaCopiar = coletarDadosDaInterface(dados);
+      const descricao = formatarTextoParaCopia(dadosParaCopiar);
+      const titulo = document.getElementById('campo-login')?.value || 'Sem título';
+
+      // Feedback visual
+      criarCardBtn.disabled = true;
+      const textoOriginal = criarCardBtn.textContent;
+      criarCardBtn.textContent = 'Criando...';
+      criarCardBtn.style.opacity = '0.7';
+
+      try {
+        await criarCardFefrello(config.boardId, config.columnId, titulo, descricao, config.responsible);
+        mostrarNotificacao('Card criado com sucesso!');
+        limparDadosSalvos();
+        container.remove();
+      } catch (e) {
+        mostrarNotificacao('Erro ao criar card: ' + e.message, 'error');
+        criarCardBtn.disabled = false;
+        criarCardBtn.textContent = textoOriginal;
+        criarCardBtn.style.opacity = '1';
+      }
+    });
+  }
 }
 
 function coletarDadosDaInterface(dadosOriginais) {
