@@ -137,45 +137,29 @@ function capturarDados() {
 function formatarTextoParaCopia(dados) {
   let texto = `${dados.url}\n\n${dados.modelo || ''}\n`;
 
-  const formatarAro = (numero, tipo, modeloEspecifico) => {
-    const padrao = /^(\d+)\s*(.*)/;
-    const [, num, resto] = numero.match(padrao) || [];
-
-    const temPedra = resto.toLowerCase().includes('com pedra');
-    const complemento = resto.replace(/com\s+pedra/gi, '').trim();
-
-    return {
-      numero: num,
-      comPedra: temPedra ? ' com pedra' : '',
-      complemento: complemento,
-      modelo: modeloEspecifico
-    };
-  };
-
   dados.aros.filter(a => a.tipo).forEach(aro => {
-    const {
-      numero,
-      comPedra,
-      complemento
-    } = formatarAro(aro.numero);
-    // Alterado para usar 20 espaços após o hífen
-    texto += `${aro.tipo} ${numero}${comPedra} >>                    ${complemento}\n`;
+    const numero = aro.numero || '';
+    const valor = aro.valor || '';
+    if (valor) {
+      texto += `${aro.tipo} ${numero} >>                    ${valor}\n`;
+    } else {
+      texto += `${aro.tipo} ${numero}\n`;
+    }
   });
 
   const avulsos = dados.aros.filter(a => !a.tipo);
   avulsos.forEach((aro, i) => {
-    const {
-      numero,
-      comPedra,
-      complemento,
-      modelo
-    } = formatarAro(aro.numero, null, aro.modelo);
+    const numero = aro.numero || '';
+    const valor = aro.valor || '';
 
     if (i > 0) texto += '\n';
     texto += `Aro avulso ${i+1}\n`;
-    if (modelo) texto += `Modelo ${modelo}\n`;
-    // Alterado para usar 20 espaços após o hífen
-    texto += `${numero}${comPedra} >>                    ${complemento}\n`;
+    if (aro.modelo) texto += `Modelo ${aro.modelo}\n`;
+    if (valor) {
+      texto += `${numero} >>                    ${valor}\n`;
+    } else {
+      texto += `${numero}\n`;
+    }
   });
 
   return texto + `\n${dados.login}`;
@@ -383,9 +367,14 @@ function criarInterfaceAro(aro, index, isAvulso = false) {
     html += `</div>`;
   }
 
+  html += `<div style="display: flex; gap: 5px; align-items: center; margin-bottom: 5px;">
+    <label style="font-size: 12px; color: #666; min-width: 30px;">Aro:</label>
+    <input type="text" id="campo-aro-${index}" value="${aro.numero}" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
+  </div>`;
   html += `<div style="display: flex; gap: 5px; align-items: center;">
-    <input type="text" id="campo-aro-${index}" value="${aro.numero} - " style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
-    <button class="btn-formatar" data-target="campo-aro-${index}" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 8px 10px; cursor: pointer; font-size: 14px;" title="Formatar texto">Aa</button>
+    <label style="font-size: 12px; color: #666; min-width: 30px;">Valor:</label>
+    <input type="text" id="campo-valor-${index}" value="" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;" placeholder="Digite o valor...">
+    <button class="btn-formatar" data-target="campo-valor-${index}" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 8px 10px; cursor: pointer; font-size: 14px;" title="Formatar texto">Aa</button>
   </div>`;
   html += `</div>`;
 
@@ -433,16 +422,26 @@ function mostrarPopup() {
     arosHTML = `
       <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9;">
         <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Masculino:</label>
+        <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 5px;">
+          <label style="font-size: 12px; color: #666; min-width: 30px;">Aro:</label>
+          <input type="text" id="campo-aro-0" value="" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
+        </div>
         <div style="display: flex; gap: 5px; align-items: center;">
-          <input type="text" id="campo-aro-0" value=" - " style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
-          <button class="btn-formatar" data-target="campo-aro-0" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 8px 10px; cursor: pointer; font-size: 14px;" title="Formatar texto">Aa</button>
+          <label style="font-size: 12px; color: #666; min-width: 30px;">Valor:</label>
+          <input type="text" id="campo-valor-0" value="" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;" placeholder="Digite o valor...">
+          <button class="btn-formatar" data-target="campo-valor-0" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 8px 10px; cursor: pointer; font-size: 14px;" title="Formatar texto">Aa</button>
         </div>
       </div>
       <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9;">
         <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Feminino:</label>
+        <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 5px;">
+          <label style="font-size: 12px; color: #666; min-width: 30px;">Aro:</label>
+          <input type="text" id="campo-aro-1" value="" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
+        </div>
         <div style="display: flex; gap: 5px; align-items: center;">
-          <input type="text" id="campo-aro-1" value=" - " style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
-          <button class="btn-formatar" data-target="campo-aro-1" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 8px 10px; cursor: pointer; font-size: 14px;" title="Formatar texto">Aa</button>
+          <label style="font-size: 12px; color: #666; min-width: 30px;">Valor:</label>
+          <input type="text" id="campo-valor-1" value="" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;" placeholder="Digite o valor...">
+          <button class="btn-formatar" data-target="campo-valor-1" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 8px 10px; cursor: pointer; font-size: 14px;" title="Formatar texto">Aa</button>
         </div>
       </div>
     `;
@@ -553,13 +552,15 @@ function coletarDadosDaInterface(dadosOriginais) {
   if (dadosOriginais.aros.length > 0) {
     dadosOriginais.aros.forEach((aro, index) => {
       const campoAro = document.getElementById(`campo-aro-${index}`);
+      const campoValor = document.getElementById(`campo-valor-${index}`);
       const campoModeloAro = document.getElementById(`campo-modelo-aro-${index}`);
 
       if (campoAro) {
+        const aroTexto = campoAro.value.trim();
+        const valorTexto = campoValor ? campoValor.value.trim() : '';
         const novoAro = {
-          numero: campoAro.value.startsWith(`${aro.numero} - `) ?
-            aro.numero + ' ' + campoAro.value.split(' - ')[1] :
-            campoAro.value,
+          numero: aroTexto,
+          valor: valorTexto,
           tipo: aro.tipo,
           modelo: campoModeloAro ? campoModeloAro.value : aro.modelo
         };
@@ -567,25 +568,24 @@ function coletarDadosDaInterface(dadosOriginais) {
       }
     });
   } else {
-    // Caso especial para quando não há aros capturados e a interface é gerada manualmente
-    const campoMasc = document.getElementById('campo-aro-0');
-    const campoFem = document.getElementById('campo-aro-1');
+    const campoAroMasc = document.getElementById('campo-aro-0');
+    const campoValorMasc = document.getElementById('campo-valor-0');
+    const campoAroFem = document.getElementById('campo-aro-1');
+    const campoValorFem = document.getElementById('campo-valor-1');
 
-    if (campoMasc && campoMasc.value.trim() !== '-') {
-      aros.push({
-        numero: campoMasc.value.replace(' - ', '').trim(),
-        tipo: 'Masculino',
-        modelo: modelo // Usa o modelo principal
-      });
-    }
+    aros.push({
+      numero: campoAroMasc ? campoAroMasc.value.trim() : '',
+      valor: campoValorMasc ? campoValorMasc.value.trim() : '',
+      tipo: 'Masculino',
+      modelo: modelo
+    });
 
-    if (campoFem && campoFem.value.trim() !== '-') {
-      aros.push({
-        numero: campoFem.value.replace(' - ', '').trim(),
-        tipo: 'Feminino',
-        modelo: modelo // Usa o modelo principal
-      });
-    }
+    aros.push({
+      numero: campoAroFem ? campoAroFem.value.trim() : '',
+      valor: campoValorFem ? campoValorFem.value.trim() : '',
+      tipo: 'Feminino',
+      modelo: modelo
+    });
   }
 
 
