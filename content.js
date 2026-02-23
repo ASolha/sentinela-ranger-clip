@@ -137,45 +137,29 @@ function capturarDados() {
 function formatarTextoParaCopia(dados) {
   let texto = `${dados.url}\n\n${dados.modelo || ''}\n`;
 
-  const formatarAro = (numero, tipo, modeloEspecifico) => {
-    const padrao = /^(\d+)\s*(.*)/;
-    const [, num, resto] = numero.match(padrao) || [];
-
-    const temPedra = resto.toLowerCase().includes('com pedra');
-    const complemento = resto.replace(/com\s+pedra/gi, '').trim();
-
-    return {
-      numero: num,
-      comPedra: temPedra ? ' com pedra' : '',
-      complemento: complemento,
-      modelo: modeloEspecifico
-    };
-  };
-
   dados.aros.filter(a => a.tipo).forEach(aro => {
-    const {
-      numero,
-      comPedra,
-      complemento
-    } = formatarAro(aro.numero);
-    // Alterado para usar 20 espaços após o hífen
-    texto += `${aro.tipo} ${numero}${comPedra} >>                    ${complemento}\n`;
+    const numero = aro.numero || '';
+    const valor = aro.valor || '';
+    if (valor) {
+      texto += `${aro.tipo} ${numero} >>                    ${valor}\n`;
+    } else {
+      texto += `${aro.tipo} ${numero}\n`;
+    }
   });
 
   const avulsos = dados.aros.filter(a => !a.tipo);
   avulsos.forEach((aro, i) => {
-    const {
-      numero,
-      comPedra,
-      complemento,
-      modelo
-    } = formatarAro(aro.numero, null, aro.modelo);
+    const numero = aro.numero || '';
+    const valor = aro.valor || '';
 
     if (i > 0) texto += '\n';
     texto += `Aro avulso ${i+1}\n`;
-    if (modelo) texto += `Modelo ${modelo}\n`;
-    // Alterado para usar 20 espaços após o hífen
-    texto += `${numero}${comPedra} >>                    ${complemento}\n`;
+    if (aro.modelo) texto += `Modelo ${aro.modelo}\n`;
+    if (valor) {
+      texto += `${numero} >>                    ${valor}\n`;
+    } else {
+      texto += `${numero}\n`;
+    }
   });
 
   return texto + `\n${dados.login}`;
@@ -183,6 +167,113 @@ function formatarTextoParaCopia(dados) {
 
 const SESSION_STORAGE_KEY = 'extensao_dados_capturados_sessao';
 const BUTTON_POSITION_STORAGE_KEY = 'extensao_button_position';
+
+// ===============================================
+// Fefrello API - Integração para criar cards
+// ===============================================
+const FEFRELLO_API_BASE = 'https://southamerica-east1-fefrello.cloudfunctions.net';
+const FEFRELLO_API_KEY = '708a34771f2659594502ed4b74cd634819a297d37e3fb2fa3cafdf826c286f16';
+const FEFRELLO_CONFIG_KEY = 'extensao_fefrello_config';
+const FEFRELLO_CACHE_KEY = 'extensao_fefrello_cache';
+const FEFRELLO_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 horas
+const RESPONSAVEIS_FEFRELLO = ['Solha', 'Ti', 'Vitão', 'Brunão', 'Fe'];
+
+async function fefrelloFetch(endpoint, options = {}) {
+  const res = await fetch(`${FEFRELLO_API_BASE}${endpoint}`, {
+    ...options,
+    headers: {
+      'x-api-key': FEFRELLO_API_KEY,
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    }
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Erro na API Fefrello');
+  return json;
+}
+
+// --- Cache de boards e colunas (24h) ---
+function salvarCache(data) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ [FEFRELLO_CACHE_KEY]: { ...data, timestamp: Date.now() } }, resolve);
+  });
+}
+
+function carregarCache() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([FEFRELLO_CACHE_KEY], (result) => {
+      const cache = result[FEFRELLO_CACHE_KEY];
+      if (cache && (Date.now() - cache.timestamp) < FEFRELLO_CACHE_TTL) {
+        resolve(cache);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+async function carregarBoards(forceRefresh = false) {
+  if (!forceRefresh) {
+    const cache = await carregarCache();
+    if (cache && cache.boards) return cache.boards;
+  }
+  const res = await fefrelloFetch('/listBoards');
+  const boards = res.data;
+  // Salvar no cache
+  const cacheAtual = await carregarCache() || {};
+  await salvarCache({ ...cacheAtual, boards, columns: cacheAtual.columns || {} });
+  return boards;
+}
+
+async function carregarColunas(boardId, forceRefresh = false) {
+  if (!forceRefresh) {
+    const cache = await carregarCache();
+    if (cache && cache.columns && cache.columns[boardId]) return cache.columns[boardId];
+  }
+  const res = await fefrelloFetch(`/listColumns?boardId=${boardId}`);
+  const colunas = res.data;
+  // Salvar no cache
+  const cacheAtual = await carregarCache() || {};
+  const columns = cacheAtual.columns || {};
+  columns[boardId] = colunas;
+  await salvarCache({ ...cacheAtual, columns });
+  return colunas;
+}
+
+async function forcarAtualizacaoCache() {
+  const boards = await carregarBoards(true);
+  const columns = {};
+  for (const board of boards) {
+    columns[board.id] = await carregarColunas(board.id, true);
+  }
+  await salvarCache({ boards, columns });
+  return { boards, columns };
+}
+
+async function criarCardFefrello(boardId, columnId, title, description, responsible) {
+  const body = { boardId, columnId, title };
+  if (description) body.description = description;
+  if (responsible) body.responsible = responsible;
+  const res = await fefrelloFetch('/createCardEndpoint', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+  return res;
+}
+
+function salvarConfigFefrello(config) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ [FEFRELLO_CONFIG_KEY]: config }, resolve);
+  });
+}
+
+function carregarConfigFefrello() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([FEFRELLO_CONFIG_KEY], (result) => {
+      resolve(result[FEFRELLO_CONFIG_KEY] || null);
+    });
+  });
+}
 
 function salvarDados(dados) {
   try {
@@ -255,23 +346,21 @@ function inserirSimboloNoCursor(campo, simbolo) {
 }
 
 function formatarTextoPrimeiraMaiuscula(texto) {
-  const partes = texto.split(' - ');
-  if (partes.length < 2) return texto;
+  if (!texto || !texto.trim()) return texto;
 
-  const textoParaFormatar = partes[1];
-  const textoFormatado = textoParaFormatar.toLowerCase()
+  return texto.toLowerCase()
     .split(' ')
     .map(palavra => palavra.charAt(0).toUpperCase() + palavra.slice(1))
     .join(' ');
-
-  return `${partes[0]} - ${textoFormatado}`;
 }
 
 function criarBotoesSimbolos() {
   return `
-    <div style="display: flex; gap: 8px; margin-bottom: 15px; justify-content: center;">
-      <button id="btn-coracao" type="button" style="background: #ff6b6b; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer; font-size: 16px; transition: background 0.2s;" title="Inserir coração">♥</button>
-      <button id="btn-infinito" type="button" style="background: #4dabf7; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer; font-size: 16px; transition: background 0.2s;" title="Inserir infinito">∞</button>
+    <div style="display: flex; gap: 6px;">
+      <button id="btn-coracao" type="button" style="width: 32px; height: 32px; background: transparent; color: #f472b6; border: 1px solid rgba(244,114,182,0.3); border-radius: 50%; cursor: pointer; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; justify-content: center;" title="Inserir coração">♥</button>
+      <button id="btn-infinito" type="button" style="width: 32px; height: 32px; background: transparent; color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); border-radius: 50%; cursor: pointer; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; justify-content: center;" title="Inserir infinito">∞</button>
+      <button id="btn-formatar-tudo" type="button" style="width: 32px; height: 32px; background: transparent; color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.15); border-radius: 50%; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center;" title="Formatar todos os textos">Aa</button>
+      <button id="btn-config-fefrello" type="button" style="width: 32px; height: 32px; background: transparent; color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.15); border-radius: 50%; cursor: pointer; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; justify-content: center;" title="Configurações Fefrello">⚙</button>
     </div>
   `;
 }
@@ -325,10 +414,10 @@ function adicionarEventosBotoesSimbolos() {
     });
 
     btnCoracao.addEventListener('mouseenter', () => {
-      btnCoracao.style.background = '#ff5252';
+      btnCoracao.style.background = 'rgba(244,114,182,0.15)';
     });
     btnCoracao.addEventListener('mouseleave', () => {
-      btnCoracao.style.background = '#ff6b6b';
+      btnCoracao.style.background = 'transparent';
     });
   }
 
@@ -341,18 +430,18 @@ function adicionarEventosBotoesSimbolos() {
     });
 
     btnInfinito.addEventListener('mouseenter', () => {
-      btnInfinito.style.background = '#339af0';
+      btnInfinito.style.background = 'rgba(96,165,250,0.15)';
     });
     btnInfinito.addEventListener('mouseleave', () => {
-      btnInfinito.style.background = '#4dabf7';
+      btnInfinito.style.background = 'transparent';
     });
   }
 
   const btnFormatarTudo = document.getElementById('btn-formatar-tudo');
   if (btnFormatarTudo) {
     btnFormatarTudo.addEventListener('click', () => {
-      document.querySelectorAll('input[type="text"], textarea').forEach(campo => {
-        if (campo.id !== 'campo-url') {
+      document.querySelectorAll('input[type="text"]').forEach(campo => {
+        if (campo.id && campo.id.startsWith('campo-valor-')) {
           campo.value = formatarTextoPrimeiraMaiuscula(campo.value);
         }
       });
@@ -360,32 +449,36 @@ function adicionarEventosBotoesSimbolos() {
     });
 
     btnFormatarTudo.addEventListener('mouseenter', () => {
-      btnFormatarTudo.style.background = '#5a6268';
+      btnFormatarTudo.style.background = 'rgba(255,255,255,0.1)';
     });
     btnFormatarTudo.addEventListener('mouseleave', () => {
-      btnFormatarTudo.style.background = '#6c757d';
+      btnFormatarTudo.style.background = 'transparent';
     });
   }
 }
 
 function criarInterfaceAro(aro, index, isAvulso = false) {
-  const tipoLabel = isAvulso ? `Aro Avulso ${index + 1}` : (aro.tipo || `Aro ${index + 1}`);
+  const tipoLabel = isAvulso ? `AVL ${index + 1}` : (aro.tipo || `ARO ${index + 1}`);
+  const badgeColor = aro.tipo === 'Masculino' ? '#6366f1' : aro.tipo === 'Feminino' ? '#ec4899' : '#8b5cf6';
 
-  let html = `<div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9;">`;
-  html += `<label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">${tipoLabel}:</label>`;
+  let html = `<div style="margin-bottom: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.04);">`;
+  html += `<span style="display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; letter-spacing: 1px; color: white; background: ${badgeColor}; margin-bottom: 8px; text-transform: uppercase;">${tipoLabel}</span>`;
 
   if (isAvulso && aro.modelo) {
-    html += `<div style="margin-bottom: 10px;">`;
-    html += `<label style="display: block; margin-bottom: 3px; font-size: 12px; color: #666;">Modelo:</label>`;
-    html += `<div style="display: flex; gap: 5px; align-items: center;">
-      <input type="text" id="campo-modelo-aro-${index}" value="${aro.modelo}" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; box-sizing: border-box; font-size: 13px;">
-    </div>`;
+    html += `<div style="margin-bottom: 8px;">`;
+    html += `<label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">MODELO</label>`;
+    html += `<input type="text" id="campo-modelo-aro-${index}" value="${aro.modelo}" style="width: 100%; padding: 6px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 12px; box-sizing: border-box; outline: none;">`;
     html += `</div>`;
   }
 
-  html += `<div style="display: flex; gap: 5px; align-items: center;">
-    <input type="text" id="campo-aro-${index}" value="${aro.numero} - " style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
-    <button class="btn-formatar" data-target="campo-aro-${index}" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 8px 10px; cursor: pointer; font-size: 14px;" title="Formatar texto">Aa</button>
+  html += `<div style="margin-bottom: 5px;">
+    <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">ARO</label>
+    <input type="text" id="campo-aro-${index}" value="${aro.numero}" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
+  </div>`;
+  html += `<div style="position: relative;">
+    <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">DADOS</label>
+    <input type="text" id="campo-valor-${index}" value="" style="width: 100%; padding: 7px 30px 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;" placeholder="Dados...">
+    <button class="btn-formatar" data-target="campo-valor-${index}" style="position: absolute; right: 4px; bottom: 4px; width: 24px; height: 24px; background: transparent; color: rgba(255,255,255,0.35); border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Formatar texto">Aa</button>
   </div>`;
   html += `</div>`;
 
@@ -408,19 +501,18 @@ function mostrarPopup() {
     position: fixed;
     top: 0;
     right: 0;
-    width: 350px;
-    height: 100vh;
-    background: rgba(255, 255, 255, 0.98);
+    width: 340px;
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
     z-index: 10000;
-    box-shadow: -3px 0 15px rgba(0, 0, 0, 0.2);
-    overflow-y: auto;
-    font-family: Arial, sans-serif;
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    border-radius: 0 0 0 16px;
   `;
 
   const popup = document.createElement('div');
   popup.style.cssText = `
-    padding: 20px;
-    height: 100%;
+    padding: 16px;
     box-sizing: border-box;
   `;
 
@@ -431,61 +523,128 @@ function mostrarPopup() {
 
   if (dados.aros.length === 0) {
     arosHTML = `
-      <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9;">
-        <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Masculino:</label>
-        <div style="display: flex; gap: 5px; align-items: center;">
-          <input type="text" id="campo-aro-0" value=" - " style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
-          <button class="btn-formatar" data-target="campo-aro-0" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 8px 10px; cursor: pointer; font-size: 14px;" title="Formatar texto">Aa</button>
+      <div style="margin-bottom: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.04);">
+        <span style="display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; letter-spacing: 1px; color: white; background: #6366f1; margin-bottom: 8px; text-transform: uppercase;">Masculino</span>
+        <div style="margin-bottom: 5px;">
+          <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">ARO</label>
+          <input type="text" id="campo-aro-0" value="" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
+        </div>
+        <div style="position: relative;">
+          <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">DADOS</label>
+          <input type="text" id="campo-valor-0" value="" style="width: 100%; padding: 7px 30px 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;" placeholder="Dados...">
+          <button class="btn-formatar" data-target="campo-valor-0" style="position: absolute; right: 4px; bottom: 4px; width: 24px; height: 24px; background: transparent; color: rgba(255,255,255,0.35); border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Formatar texto">Aa</button>
         </div>
       </div>
-      <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9;">
-        <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Feminino:</label>
-        <div style="display: flex; gap: 5px; align-items: center;">
-          <input type="text" id="campo-aro-1" value=" - " style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
-          <button class="btn-formatar" data-target="campo-aro-1" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 8px 10px; cursor: pointer; font-size: 14px;" title="Formatar texto">Aa</button>
+      <div style="margin-bottom: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.04);">
+        <span style="display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; letter-spacing: 1px; color: white; background: #ec4899; margin-bottom: 8px; text-transform: uppercase;">Feminino</span>
+        <div style="margin-bottom: 5px;">
+          <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">ARO</label>
+          <input type="text" id="campo-aro-1" value="" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
+        </div>
+        <div style="position: relative;">
+          <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">DADOS</label>
+          <input type="text" id="campo-valor-1" value="" style="width: 100%; padding: 7px 30px 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;" placeholder="Dados...">
+          <button class="btn-formatar" data-target="campo-valor-1" style="position: absolute; right: 4px; bottom: 4px; width: 24px; height: 24px; background: transparent; color: rgba(255,255,255,0.35); border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Formatar texto">Aa</button>
         </div>
       </div>
     `;
   }
 
   popup.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #007cba; padding-bottom: 10px;">
-      <h2 style="margin: 0; color: #007cba; font-size: 18px;">Capturador de Dados</h2>
-      <button id="fechar-popup" style="background: #ff4444; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-size: 14px;">✕</button>
+    <style>
+      #extensao-popup-overlay input:focus,
+      #extensao-popup-overlay textarea:focus {
+        border-color: rgba(99,102,241,0.5) !important;
+        box-shadow: 0 0 0 2px rgba(99,102,241,0.2) !important;
+      }
+      #extensao-popup-overlay input::placeholder {
+        color: rgba(255,255,255,0.25);
+      }
+      #extensao-popup-overlay .btn-formatar:hover {
+        color: rgba(255,255,255,0.7) !important;
+        background: rgba(255,255,255,0.08) !important;
+      }
+      #extensao-popup-overlay select:focus {
+        border-color: rgba(99,102,241,0.5) !important;
+        box-shadow: 0 0 0 2px rgba(99,102,241,0.2) !important;
+      }
+      #extensao-popup-overlay select option {
+        background: #1a1a2e;
+        color: #fff;
+      }
+    </style>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      ${criarBotoesSimbolos()}
+      <button id="fechar-popup" style="width: 28px; height: 28px; background: transparent; color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.12); border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0;">✕</button>
     </div>
 
-    ${criarBotoesSimbolos()}
+    <div id="conteudo-principal">
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">LOGIN</label>
+        <input type="text" id="campo-login" value="${dados.login}" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
+      </div>
 
-    <div style="margin-bottom: 15px;">
-      <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Login:</label>
-      <div style="display: flex; gap: 5px; align-items: center;">
-        <input type="text" id="campo-login" value="${dados.login}" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
+      ${(!isAvulso || !dados.aros.some(aro => aro.modelo)) ?
+      `<div style="margin-bottom: 10px;">
+          <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">MODELO</label>
+          <textarea id="campo-modelo" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none; max-height: 50px; resize: none; line-height: 1.4;">${dados.modelo}</textarea>
+        </div>` :
+      ''}
+
+      ${arosHTML}
+
+      <input type="hidden" id="campo-url" value="${dados.url}">
+    </div>
+
+    <div id="footer-principal" style="display: flex; gap: 6px; margin-top: 12px;">
+      <button id="recapturar-dados" style="flex: 0 0 auto; background: transparent; color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 12px; cursor: pointer; font-size: 11px; font-weight: 500; transition: all 0.2s;">Recapturar</button>
+      <button id="criar-card-fefrello" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 10px; padding: 10px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s; box-shadow: 0 2px 8px rgba(16,185,129,0.3);">Criar Card</button>
+      <button id="copiar-dados" style="flex: 1; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 10px; padding: 10px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s; box-shadow: 0 2px 8px rgba(99,102,241,0.3);">Copiar e Fechar</button>
+    </div>
+
+    <div id="view-config-fefrello" style="display: none;">
+      <div style="margin-bottom: 14px;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.6);">Configurações Fefrello</span>
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">BOARD</label>
+        <select id="config-board" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none; cursor: pointer;">
+          <option value="">Carregando...</option>
+        </select>
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">LISTA (COLUNA)</label>
+        <select id="config-coluna" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none; cursor: pointer;" disabled>
+          <option value="">Selecione um board primeiro</option>
+        </select>
+      </div>
+      <div style="margin-bottom: 14px;">
+        <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">RESPONSÁVEL</label>
+        <select id="config-responsavel" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none; cursor: pointer;">
+          <option value="">Selecione...</option>
+          ${RESPONSAVEIS_FEFRELLO.map(r => `<option value="${r}">${r}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button id="atualizar-cache-fefrello" style="flex: 1; background: transparent; color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 10px; cursor: pointer; font-size: 11px; font-weight: 500; transition: all 0.2s;">Atualizar Listas</button>
+        <button id="salvar-config-fefrello" style="flex: 2; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 10px; padding: 10px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; box-shadow: 0 2px 8px rgba(99,102,241,0.3);">Salvar Configurações</button>
       </div>
     </div>
 
-    ${(!isAvulso || !dados.aros.some(aro => aro.modelo)) ?
-    `<div style="margin-bottom: 15px;">
-        <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Modelo da Aliança:</label>
-        <div style="display: flex; gap: 5px; align-items: flex-start;">
-          <textarea id="campo-modelo" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px; min-height: 60px; resize: vertical;">${dados.modelo}</textarea>
-        </div>
-      </div>` :
-    ''}
-
-    ${arosHTML}
-
-    <div style="margin-bottom: 20px;">
-      <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">URL Capturada:</label>
-      <textarea id="campo-url" readonly style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 12px; min-height: 40px; background: #f5f5f5; resize: vertical;">${dados.url}</textarea>
-    </div>
-
-    <div style="display: flex; flex-direction: column; gap: 10px;">
-      <button id="recapturar-dados" style="background: #f0ad4e; color: white; border: none; border-radius: 5px; padding: 10px; cursor: pointer; font-size: 14px;">🔄 Recapturar Dados</button>
-      <button id="copiar-dados" style="background: #4CAF50; color: white; border: none; border-radius: 5px; padding: 10px; cursor: pointer; font-size: 14px;">📋 Copiar e Fechar</button>
-    </div>
-
-    <div style="margin-top: 15px; padding: 10px; background: #e8f4fd; border-radius: 5px; font-size: 12px; color: #0056b3;">
-      💡 <strong>Dica:</strong> O URL é atualizado automaticamente ao navegar. Use "Recapturar Dados" para atualizar login/modelo/aros.
+    <div id="view-enviar-card" style="display: none;">
+      <div style="margin-bottom: 14px;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.6);">Enviar para o Fefrello</span>
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">LISTA (COLUNA)</label>
+        <select id="enviar-coluna" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none; cursor: pointer;">
+          <option value="">Carregando...</option>
+        </select>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button id="voltar-enviar-card" style="flex: 0 0 auto; background: transparent; color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 14px; cursor: pointer; font-size: 11px; font-weight: 500; transition: all 0.2s;">Voltar</button>
+        <button id="confirmar-enviar-card" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 10px; padding: 10px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; box-shadow: 0 2px 8px rgba(16,185,129,0.3);">Enviar para o Fefrello</button>
+      </div>
     </div>
   `;
 
@@ -505,12 +664,43 @@ function mostrarPopup() {
     });
   });
 
-  document.getElementById('fechar-popup').addEventListener('click', () => {
-    container.remove(); // Apenas fecha o popup, não limpa os dados da sessão
+  const fecharBtn = document.getElementById('fechar-popup');
+  fecharBtn.addEventListener('click', () => {
+    container.remove();
+  });
+  fecharBtn.addEventListener('mouseenter', () => {
+    fecharBtn.style.background = 'rgba(239,68,68,0.2)';
+    fecharBtn.style.color = '#f87171';
+    fecharBtn.style.borderColor = 'rgba(239,68,68,0.4)';
+  });
+  fecharBtn.addEventListener('mouseleave', () => {
+    fecharBtn.style.background = 'transparent';
+    fecharBtn.style.color = 'rgba(255,255,255,0.4)';
+    fecharBtn.style.borderColor = 'rgba(255,255,255,0.12)';
+  });
+
+  const recapturarBtn = document.getElementById('recapturar-dados');
+  recapturarBtn.addEventListener('mouseenter', () => {
+    recapturarBtn.style.background = 'rgba(255,255,255,0.08)';
+    recapturarBtn.style.color = 'rgba(255,255,255,0.9)';
+  });
+  recapturarBtn.addEventListener('mouseleave', () => {
+    recapturarBtn.style.background = 'transparent';
+    recapturarBtn.style.color = 'rgba(255,255,255,0.6)';
+  });
+
+  const copiarBtn = document.getElementById('copiar-dados');
+  copiarBtn.addEventListener('mouseenter', () => {
+    copiarBtn.style.boxShadow = '0 4px 16px rgba(99,102,241,0.45)';
+    copiarBtn.style.transform = 'translateY(-1px)';
+  });
+  copiarBtn.addEventListener('mouseleave', () => {
+    copiarBtn.style.boxShadow = '0 2px 8px rgba(99,102,241,0.3)';
+    copiarBtn.style.transform = 'translateY(0)';
   });
 
   // --- NOVO EVENTO PARA RECAPTURAR DADOS ---
-  document.getElementById('recapturar-dados').addEventListener('click', () => {
+  recapturarBtn.addEventListener('click', () => {
     const popupOverlay = document.getElementById('extensao-popup-overlay');
     if (popupOverlay) {
       popupOverlay.remove();
@@ -522,7 +712,7 @@ function mostrarPopup() {
   });
 
 
-  document.getElementById('copiar-dados').addEventListener('click', () => {
+  copiarBtn.addEventListener('click', () => {
     const dadosParaCopiar = coletarDadosDaInterface(dados);
     const textoFormatado = formatarTextoParaCopia(dadosParaCopiar);
 
@@ -542,6 +732,263 @@ function mostrarPopup() {
       container.remove();
     });
   });
+
+  // --- TOGGLE CONFIG FEFRELLO ---
+  const viewConfig = document.getElementById('view-config-fefrello');
+  const btnConfig = document.getElementById('btn-config-fefrello');
+  let configAberta = false;
+
+  if (btnConfig) {
+    btnConfig.addEventListener('click', async () => {
+      configAberta = !configAberta;
+      if (configAberta) {
+        btnConfig.style.background = 'rgba(255,255,255,0.15)';
+        btnConfig.style.color = '#fff';
+        // Esconder view principal (exceto header e footer) — mostra config
+        const conteudoPrincipal = document.getElementById('conteudo-principal');
+        const footerPrincipal = document.getElementById('footer-principal');
+        if (conteudoPrincipal) conteudoPrincipal.style.display = 'none';
+        if (footerPrincipal) footerPrincipal.style.display = 'none';
+        viewConfig.style.display = 'block';
+        // Carregar dados
+        await carregarDadosConfig();
+      } else {
+        btnConfig.style.background = 'transparent';
+        btnConfig.style.color = 'rgba(255,255,255,0.5)';
+        const conteudoPrincipal = document.getElementById('conteudo-principal');
+        const footerPrincipal = document.getElementById('footer-principal');
+        if (conteudoPrincipal) conteudoPrincipal.style.display = 'block';
+        if (footerPrincipal) footerPrincipal.style.display = 'flex';
+        viewConfig.style.display = 'none';
+      }
+    });
+
+    btnConfig.addEventListener('mouseenter', () => {
+      if (!configAberta) btnConfig.style.background = 'rgba(255,255,255,0.1)';
+    });
+    btnConfig.addEventListener('mouseleave', () => {
+      if (!configAberta) btnConfig.style.background = 'transparent';
+    });
+  }
+
+  async function carregarDadosConfig() {
+    const selectBoard = document.getElementById('config-board');
+    const selectColuna = document.getElementById('config-coluna');
+    const selectResponsavel = document.getElementById('config-responsavel');
+
+    const configSalva = await carregarConfigFefrello();
+
+    // Carregar boards
+    selectBoard.innerHTML = '<option value="">Carregando...</option>';
+    try {
+      const boards = await carregarBoards();
+      selectBoard.innerHTML = '<option value="">Selecione o board...</option>';
+      boards.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.id;
+        opt.textContent = b.name;
+        if (configSalva && configSalva.boardId === b.id) opt.selected = true;
+        selectBoard.appendChild(opt);
+      });
+
+      // Se tem board salvo, carregar colunas
+      if (configSalva && configSalva.boardId) {
+        await carregarColunasNoSelect(configSalva.boardId, configSalva.columnId);
+      }
+
+      // Se tem responsavel salvo
+      if (configSalva && configSalva.responsible) {
+        selectResponsavel.value = configSalva.responsible;
+      }
+    } catch (e) {
+      selectBoard.innerHTML = '<option value="">Erro ao carregar boards</option>';
+      mostrarNotificacao('Erro ao carregar boards: ' + e.message, 'error');
+    }
+
+    // Evento ao trocar board
+    selectBoard.addEventListener('change', async () => {
+      const boardId = selectBoard.value;
+      if (boardId) {
+        await carregarColunasNoSelect(boardId);
+      } else {
+        selectColuna.innerHTML = '<option value="">Selecione um board primeiro</option>';
+        selectColuna.disabled = true;
+      }
+    });
+  }
+
+  async function carregarColunasNoSelect(boardId, columnIdSalva) {
+    const selectColuna = document.getElementById('config-coluna');
+    selectColuna.innerHTML = '<option value="">Carregando...</option>';
+    selectColuna.disabled = true;
+    try {
+      const colunas = await carregarColunas(boardId);
+      selectColuna.innerHTML = '<option value="">Selecione a coluna...</option>';
+      colunas.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.title;
+        if (columnIdSalva && columnIdSalva === c.id) opt.selected = true;
+        selectColuna.appendChild(opt);
+      });
+      selectColuna.disabled = false;
+    } catch (e) {
+      selectColuna.innerHTML = '<option value="">Erro ao carregar colunas</option>';
+      mostrarNotificacao('Erro ao carregar colunas: ' + e.message, 'error');
+    }
+  }
+
+  // Salvar config
+  const salvarConfigBtn = document.getElementById('salvar-config-fefrello');
+  if (salvarConfigBtn) {
+    salvarConfigBtn.addEventListener('click', async () => {
+      const boardId = document.getElementById('config-board').value;
+      const columnId = document.getElementById('config-coluna').value;
+      const responsible = document.getElementById('config-responsavel').value;
+
+      if (!boardId || !columnId) {
+        mostrarNotificacao('Selecione board e coluna', 'error');
+        return;
+      }
+
+      await salvarConfigFefrello({ boardId, columnId, responsible });
+      mostrarNotificacao('Configurações salvas!');
+
+      // Voltar para view principal
+      configAberta = false;
+      btnConfig.style.background = 'transparent';
+      btnConfig.style.color = 'rgba(255,255,255,0.5)';
+      const conteudoPrincipal = document.getElementById('conteudo-principal');
+      const footerPrincipal = document.getElementById('footer-principal');
+      if (conteudoPrincipal) conteudoPrincipal.style.display = 'block';
+      if (footerPrincipal) footerPrincipal.style.display = 'flex';
+      viewConfig.style.display = 'none';
+    });
+  }
+
+  // --- BOTÃO ATUALIZAR CACHE ---
+  const atualizarCacheBtn = document.getElementById('atualizar-cache-fefrello');
+  if (atualizarCacheBtn) {
+    atualizarCacheBtn.addEventListener('click', async () => {
+      atualizarCacheBtn.textContent = 'Atualizando...';
+      atualizarCacheBtn.disabled = true;
+      try {
+        await forcarAtualizacaoCache();
+        mostrarNotificacao('Listas atualizadas!');
+        await carregarDadosConfig(); // Recarrega os selects
+      } catch (e) {
+        mostrarNotificacao('Erro ao atualizar: ' + e.message, 'error');
+      }
+      atualizarCacheBtn.textContent = 'Atualizar Listas';
+      atualizarCacheBtn.disabled = false;
+    });
+  }
+
+  // --- CRIAR CARD FEFRELLO (abre tela intermediária) ---
+  const viewEnviarCard = document.getElementById('view-enviar-card');
+  const criarCardBtn = document.getElementById('criar-card-fefrello');
+  if (criarCardBtn) {
+    criarCardBtn.addEventListener('mouseenter', () => {
+      criarCardBtn.style.boxShadow = '0 4px 16px rgba(16,185,129,0.45)';
+      criarCardBtn.style.transform = 'translateY(-1px)';
+    });
+    criarCardBtn.addEventListener('mouseleave', () => {
+      criarCardBtn.style.boxShadow = '0 2px 8px rgba(16,185,129,0.3)';
+      criarCardBtn.style.transform = 'translateY(0)';
+    });
+
+    criarCardBtn.addEventListener('click', async () => {
+      const config = await carregarConfigFefrello();
+      if (!config || !config.boardId) {
+        mostrarNotificacao('Configure o Fefrello primeiro (⚙)', 'error');
+        return;
+      }
+
+      // Esconder view principal e footer, mostrar tela de envio
+      const conteudoPrincipal = document.getElementById('conteudo-principal');
+      const footerPrincipal = document.getElementById('footer-principal');
+      if (conteudoPrincipal) conteudoPrincipal.style.display = 'none';
+      if (footerPrincipal) footerPrincipal.style.display = 'none';
+      viewEnviarCard.style.display = 'block';
+
+      // Carregar colunas no select da tela de envio
+      const selectColuna = document.getElementById('enviar-coluna');
+      selectColuna.innerHTML = '<option value="">Carregando...</option>';
+
+      try {
+        const colunas = await carregarColunas(config.boardId);
+        selectColuna.innerHTML = '<option value="">Selecione a lista...</option>';
+        colunas.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = c.title;
+          if (config.columnId === c.id) opt.selected = true;
+          selectColuna.appendChild(opt);
+        });
+      } catch (e) {
+        selectColuna.innerHTML = '<option value="">Erro ao carregar</option>';
+        mostrarNotificacao('Erro ao carregar colunas: ' + e.message, 'error');
+      }
+    });
+  }
+
+  // Botão Voltar da tela de envio
+  const voltarEnviarBtn = document.getElementById('voltar-enviar-card');
+  if (voltarEnviarBtn) {
+    voltarEnviarBtn.addEventListener('click', () => {
+      viewEnviarCard.style.display = 'none';
+      const conteudoPrincipal = document.getElementById('conteudo-principal');
+      const footerPrincipal = document.getElementById('footer-principal');
+      if (conteudoPrincipal) conteudoPrincipal.style.display = 'block';
+      if (footerPrincipal) footerPrincipal.style.display = 'flex';
+    });
+  }
+
+  // Botão Confirmar envio
+  const confirmarEnviarBtn = document.getElementById('confirmar-enviar-card');
+  if (confirmarEnviarBtn) {
+    confirmarEnviarBtn.addEventListener('mouseenter', () => {
+      confirmarEnviarBtn.style.boxShadow = '0 4px 16px rgba(16,185,129,0.45)';
+      confirmarEnviarBtn.style.transform = 'translateY(-1px)';
+    });
+    confirmarEnviarBtn.addEventListener('mouseleave', () => {
+      confirmarEnviarBtn.style.boxShadow = '0 2px 8px rgba(16,185,129,0.3)';
+      confirmarEnviarBtn.style.transform = 'translateY(0)';
+    });
+
+    confirmarEnviarBtn.addEventListener('click', async () => {
+      const config = await carregarConfigFefrello();
+      const columnId = document.getElementById('enviar-coluna').value;
+      const responsible = config.responsible || '';
+
+      if (!columnId) {
+        mostrarNotificacao('Selecione a lista', 'error');
+        return;
+      }
+
+      const dadosParaCopiar = coletarDadosDaInterface(dados);
+      const descricao = formatarTextoParaCopia(dadosParaCopiar);
+      const titulo = document.getElementById('campo-login')?.value || 'Sem título';
+
+      // Feedback visual
+      confirmarEnviarBtn.disabled = true;
+      const textoOriginal = confirmarEnviarBtn.textContent;
+      confirmarEnviarBtn.textContent = 'Enviando...';
+      confirmarEnviarBtn.style.opacity = '0.7';
+
+      try {
+        await criarCardFefrello(config.boardId, columnId, titulo, descricao, responsible);
+        mostrarNotificacao('Card criado com sucesso!');
+        limparDadosSalvos();
+        container.remove();
+      } catch (e) {
+        mostrarNotificacao('Erro ao criar card: ' + e.message, 'error');
+        confirmarEnviarBtn.disabled = false;
+        confirmarEnviarBtn.textContent = textoOriginal;
+        confirmarEnviarBtn.style.opacity = '1';
+      }
+    });
+  }
 }
 
 function coletarDadosDaInterface(dadosOriginais) {
@@ -553,13 +1000,15 @@ function coletarDadosDaInterface(dadosOriginais) {
   if (dadosOriginais.aros.length > 0) {
     dadosOriginais.aros.forEach((aro, index) => {
       const campoAro = document.getElementById(`campo-aro-${index}`);
+      const campoValor = document.getElementById(`campo-valor-${index}`);
       const campoModeloAro = document.getElementById(`campo-modelo-aro-${index}`);
 
       if (campoAro) {
+        const aroTexto = campoAro.value.trim();
+        const valorTexto = campoValor ? campoValor.value.trim() : '';
         const novoAro = {
-          numero: campoAro.value.startsWith(`${aro.numero} - `) ?
-            aro.numero + ' ' + campoAro.value.split(' - ')[1] :
-            campoAro.value,
+          numero: aroTexto,
+          valor: valorTexto,
           tipo: aro.tipo,
           modelo: campoModeloAro ? campoModeloAro.value : aro.modelo
         };
@@ -567,25 +1016,24 @@ function coletarDadosDaInterface(dadosOriginais) {
       }
     });
   } else {
-    // Caso especial para quando não há aros capturados e a interface é gerada manualmente
-    const campoMasc = document.getElementById('campo-aro-0');
-    const campoFem = document.getElementById('campo-aro-1');
+    const campoAroMasc = document.getElementById('campo-aro-0');
+    const campoValorMasc = document.getElementById('campo-valor-0');
+    const campoAroFem = document.getElementById('campo-aro-1');
+    const campoValorFem = document.getElementById('campo-valor-1');
 
-    if (campoMasc && campoMasc.value.trim() !== '-') {
-      aros.push({
-        numero: campoMasc.value.replace(' - ', '').trim(),
-        tipo: 'Masculino',
-        modelo: modelo // Usa o modelo principal
-      });
-    }
+    aros.push({
+      numero: campoAroMasc ? campoAroMasc.value.trim() : '',
+      valor: campoValorMasc ? campoValorMasc.value.trim() : '',
+      tipo: 'Masculino',
+      modelo: modelo
+    });
 
-    if (campoFem && campoFem.value.trim() !== '-') {
-      aros.push({
-        numero: campoFem.value.replace(' - ', '').trim(),
-        tipo: 'Feminino',
-        modelo: modelo // Usa o modelo principal
-      });
-    }
+    aros.push({
+      numero: campoAroFem ? campoAroFem.value.trim() : '',
+      valor: campoValorFem ? campoValorFem.value.trim() : '',
+      tipo: 'Feminino',
+      modelo: modelo
+    });
   }
 
 
@@ -608,15 +1056,17 @@ function mostrarNotificacao(mensagem, tipo = 'success') {
   notificacao.style.cssText = `
     position: fixed;
     top: 20px;
-    right: 370px;
-    background: ${tipo === 'success' ? '#4CAF50' : '#f44336'};
+    right: 360px;
+    background: ${tipo === 'success' ? 'rgba(99,102,241,0.95)' : 'rgba(239,68,68,0.95)'};
     color: white;
-    padding: 15px 20px;
-    border-radius: 5px;
+    padding: 10px 16px;
+    border-radius: 10px;
     z-index: 10001;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    backdrop-filter: blur(8px);
     opacity: 0;
     transform: translateY(-20px);
     transition: all 0.3s ease;
