@@ -253,9 +253,10 @@ function formatarTextoPrimeiraMaiuscula(texto) {
 
 function criarBotoesSimbolos() {
   return `
-    <div style="display: flex; gap: 8px; margin-bottom: 15px; justify-content: center;">
-      <button id="btn-coracao" type="button" style="background: #ff6b6b; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer; font-size: 16px; transition: background 0.2s;" title="Inserir coração">♥</button>
-      <button id="btn-infinito" type="button" style="background: #4dabf7; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer; font-size: 16px; transition: background 0.2s;" title="Inserir infinito">∞</button>
+    <div style="display: flex; gap: 6px; margin-bottom: 12px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.06);">
+      <button id="btn-coracao" type="button" style="width: 32px; height: 32px; background: transparent; color: #f472b6; border: 1px solid rgba(244,114,182,0.3); border-radius: 50%; cursor: pointer; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; justify-content: center;" title="Inserir coração">♥</button>
+      <button id="btn-infinito" type="button" style="width: 32px; height: 32px; background: transparent; color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); border-radius: 50%; cursor: pointer; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; justify-content: center;" title="Inserir infinito">∞</button>
+      <button id="btn-formatar-tudo" type="button" style="width: 32px; height: 32px; background: transparent; color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.15); border-radius: 50%; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center;" title="Formatar todos os textos">Aa</button>
     </div>
   `;
 }
@@ -309,10 +310,10 @@ function adicionarEventosBotoesSimbolos() {
     });
 
     btnCoracao.addEventListener('mouseenter', () => {
-      btnCoracao.style.background = '#ff5252';
+      btnCoracao.style.background = 'rgba(244,114,182,0.15)';
     });
     btnCoracao.addEventListener('mouseleave', () => {
-      btnCoracao.style.background = '#ff6b6b';
+      btnCoracao.style.background = 'transparent';
     });
   }
 
@@ -325,10 +326,10 @@ function adicionarEventosBotoesSimbolos() {
     });
 
     btnInfinito.addEventListener('mouseenter', () => {
-      btnInfinito.style.background = '#339af0';
+      btnInfinito.style.background = 'rgba(96,165,250,0.15)';
     });
     btnInfinito.addEventListener('mouseleave', () => {
-      btnInfinito.style.background = '#4dabf7';
+      btnInfinito.style.background = 'transparent';
     });
   }
 
@@ -344,39 +345,39 @@ function adicionarEventosBotoesSimbolos() {
     });
 
     btnFormatarTudo.addEventListener('mouseenter', () => {
-      btnFormatarTudo.style.background = '#5a6268';
+      btnFormatarTudo.style.background = 'rgba(255,255,255,0.1)';
     });
     btnFormatarTudo.addEventListener('mouseleave', () => {
-      btnFormatarTudo.style.background = '#6c757d';
+      btnFormatarTudo.style.background = 'transparent';
     });
   }
 }
 
 function criarInterfaceAro(aro, index, isAvulso = false) {
-  const tipoLabel = isAvulso ? `Aro Avulso ${index + 1}` : (aro.tipo || `Aro ${index + 1}`);
+  const tipoLabel = isAvulso ? `AVL ${index + 1}` : (aro.tipo === 'Masculino' ? 'MASC' : aro.tipo === 'Feminino' ? 'FEM' : (aro.tipo || `ARO ${index + 1}`));
+  const badgeColor = aro.tipo === 'Masculino' ? '#6366f1' : aro.tipo === 'Feminino' ? '#ec4899' : '#8b5cf6';
 
-  let html = `<div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9;">`;
-  html += `<label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">${tipoLabel}:</label>`;
+  let html = `<div style="margin-bottom: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.04);">`;
+  html += `<span style="display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; letter-spacing: 1px; color: white; background: ${badgeColor}; margin-bottom: 8px; text-transform: uppercase;">${tipoLabel}</span>`;
 
   if (isAvulso && aro.modelo) {
-    html += `<div style="margin-bottom: 10px;">`;
-    html += `<label style="display: block; margin-bottom: 3px; font-size: 12px; color: #666;">Modelo:</label>`;
-    html += `<div style="display: flex; gap: 5px; align-items: center;">
-      <input type="text" id="campo-modelo-aro-${index}" value="${aro.modelo}" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; box-sizing: border-box; font-size: 13px;">
-    </div>`;
+    html += `<div style="margin-bottom: 8px;">`;
+    html += `<label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">MODELO</label>`;
+    html += `<input type="text" id="campo-modelo-aro-${index}" value="${aro.modelo}" style="width: 100%; padding: 6px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 12px; box-sizing: border-box; outline: none;">`;
     html += `</div>`;
   }
 
-  html += `<div style="display: flex; gap: 5px; align-items: center; margin-bottom: 5px;">
-    <label style="font-size: 12px; color: #666; min-width: 30px;">Aro:</label>
-    <input type="text" id="campo-aro-${index}" value="${aro.numero}" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
+  html += `<div style="display: flex; gap: 8px;">`;
+  html += `<div style="flex: 1;">
+    <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">ARO</label>
+    <input type="text" id="campo-aro-${index}" value="${aro.numero}" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
   </div>`;
-  html += `<div style="display: flex; gap: 5px; align-items: center;">
-    <label style="font-size: 12px; color: #666; min-width: 30px;">Valor:</label>
-    <input type="text" id="campo-valor-${index}" value="" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;" placeholder="Digite o valor...">
-    <button class="btn-formatar" data-target="campo-valor-${index}" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 8px 10px; cursor: pointer; font-size: 14px;" title="Formatar texto">Aa</button>
+  html += `<div style="flex: 1; position: relative;">
+    <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">DADOS</label>
+    <input type="text" id="campo-valor-${index}" value="" style="width: 100%; padding: 7px 30px 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;" placeholder="Dados...">
+    <button class="btn-formatar" data-target="campo-valor-${index}" style="position: absolute; right: 4px; top: 20px; width: 24px; height: 24px; background: transparent; color: rgba(255,255,255,0.35); border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Formatar texto">Aa</button>
   </div>`;
-  html += `</div>`;
+  html += `</div></div>`;
 
   return html;
 }
@@ -397,19 +398,18 @@ function mostrarPopup() {
     position: fixed;
     top: 0;
     right: 0;
-    width: 350px;
-    height: 100vh;
-    background: rgba(255, 255, 255, 0.98);
+    width: 340px;
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
     z-index: 10000;
-    box-shadow: -3px 0 15px rgba(0, 0, 0, 0.2);
-    overflow-y: auto;
-    font-family: Arial, sans-serif;
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    border-radius: 0 0 0 16px;
   `;
 
   const popup = document.createElement('div');
   popup.style.cssText = `
-    padding: 20px;
-    height: 100%;
+    padding: 16px;
     box-sizing: border-box;
   `;
 
@@ -420,71 +420,81 @@ function mostrarPopup() {
 
   if (dados.aros.length === 0) {
     arosHTML = `
-      <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9;">
-        <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Masculino:</label>
-        <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 5px;">
-          <label style="font-size: 12px; color: #666; min-width: 30px;">Aro:</label>
-          <input type="text" id="campo-aro-0" value="" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
-        </div>
-        <div style="display: flex; gap: 5px; align-items: center;">
-          <label style="font-size: 12px; color: #666; min-width: 30px;">Valor:</label>
-          <input type="text" id="campo-valor-0" value="" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;" placeholder="Digite o valor...">
-          <button class="btn-formatar" data-target="campo-valor-0" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 8px 10px; cursor: pointer; font-size: 14px;" title="Formatar texto">Aa</button>
+      <div style="margin-bottom: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.04);">
+        <span style="display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; letter-spacing: 1px; color: white; background: #6366f1; margin-bottom: 8px; text-transform: uppercase;">MASC</span>
+        <div style="display: flex; gap: 8px;">
+          <div style="flex: 1;">
+            <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">ARO</label>
+            <input type="text" id="campo-aro-0" value="" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
+          </div>
+          <div style="flex: 1; position: relative;">
+            <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">DADOS</label>
+            <input type="text" id="campo-valor-0" value="" style="width: 100%; padding: 7px 30px 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;" placeholder="Dados...">
+            <button class="btn-formatar" data-target="campo-valor-0" style="position: absolute; right: 4px; top: 20px; width: 24px; height: 24px; background: transparent; color: rgba(255,255,255,0.35); border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Formatar texto">Aa</button>
+          </div>
         </div>
       </div>
-      <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9;">
-        <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Feminino:</label>
-        <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 5px;">
-          <label style="font-size: 12px; color: #666; min-width: 30px;">Aro:</label>
-          <input type="text" id="campo-aro-1" value="" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
-        </div>
-        <div style="display: flex; gap: 5px; align-items: center;">
-          <label style="font-size: 12px; color: #666; min-width: 30px;">Valor:</label>
-          <input type="text" id="campo-valor-1" value="" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;" placeholder="Digite o valor...">
-          <button class="btn-formatar" data-target="campo-valor-1" style="background: #6c757d; color: white; border: none; border-radius: 4px; padding: 8px 10px; cursor: pointer; font-size: 14px;" title="Formatar texto">Aa</button>
+      <div style="margin-bottom: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.04);">
+        <span style="display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; letter-spacing: 1px; color: white; background: #ec4899; margin-bottom: 8px; text-transform: uppercase;">FEM</span>
+        <div style="display: flex; gap: 8px;">
+          <div style="flex: 1;">
+            <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">ARO</label>
+            <input type="text" id="campo-aro-1" value="" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
+          </div>
+          <div style="flex: 1; position: relative;">
+            <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">DADOS</label>
+            <input type="text" id="campo-valor-1" value="" style="width: 100%; padding: 7px 30px 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;" placeholder="Dados...">
+            <button class="btn-formatar" data-target="campo-valor-1" style="position: absolute; right: 4px; top: 20px; width: 24px; height: 24px; background: transparent; color: rgba(255,255,255,0.35); border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Formatar texto">Aa</button>
+          </div>
         </div>
       </div>
     `;
   }
 
   popup.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #007cba; padding-bottom: 10px;">
-      <h2 style="margin: 0; color: #007cba; font-size: 18px;">Capturador de Dados</h2>
-      <button id="fechar-popup" style="background: #ff4444; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-size: 14px;">✕</button>
+    <style>
+      #extensao-popup-overlay input:focus,
+      #extensao-popup-overlay textarea:focus {
+        border-color: rgba(99,102,241,0.5) !important;
+        box-shadow: 0 0 0 2px rgba(99,102,241,0.2) !important;
+      }
+      #extensao-popup-overlay input::placeholder {
+        color: rgba(255,255,255,0.25);
+      }
+      #extensao-popup-overlay .btn-formatar:hover {
+        color: rgba(255,255,255,0.7) !important;
+        background: rgba(255,255,255,0.08) !important;
+      }
+    </style>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="color: #fff; font-size: 15px; font-weight: 600;">Sentinela Ranger</span>
+        <span style="background: #6366f1; color: #fff; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; padding: 2px 8px; border-radius: 20px;">CLIP</span>
+      </div>
+      <button id="fechar-popup" style="width: 28px; height: 28px; background: transparent; color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.12); border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">✕</button>
     </div>
 
     ${criarBotoesSimbolos()}
 
-    <div style="margin-bottom: 15px;">
-      <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Login:</label>
-      <div style="display: flex; gap: 5px; align-items: center;">
-        <input type="text" id="campo-login" value="${dados.login}" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
-      </div>
+    <div style="margin-bottom: 10px;">
+      <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">LOGIN</label>
+      <input type="text" id="campo-login" value="${dados.login}" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
     </div>
 
     ${(!isAvulso || !dados.aros.some(aro => aro.modelo)) ?
-    `<div style="margin-bottom: 15px;">
-        <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Modelo da Aliança:</label>
-        <div style="display: flex; gap: 5px; align-items: flex-start;">
-          <textarea id="campo-modelo" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px; min-height: 60px; resize: vertical;">${dados.modelo}</textarea>
-        </div>
+    `<div style="margin-bottom: 10px;">
+        <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">MODELO</label>
+        <textarea id="campo-modelo" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none; max-height: 50px; resize: none; line-height: 1.4;">${dados.modelo}</textarea>
       </div>` :
     ''}
 
     ${arosHTML}
 
-    <div style="margin-bottom: 20px;">
-      <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">URL Capturada:</label>
-      <textarea id="campo-url" readonly style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 12px; min-height: 40px; background: #f5f5f5; resize: vertical;">${dados.url}</textarea>
-    </div>
+    <input type="hidden" id="campo-url" value="${dados.url}">
 
-    <div style="display: flex; flex-direction: column; gap: 10px;">
-      <button id="recapturar-dados" style="background: #f0ad4e; color: white; border: none; border-radius: 5px; padding: 10px; cursor: pointer; font-size: 14px;">🔄 Recapturar Dados</button>
-      <button id="copiar-dados" style="background: #4CAF50; color: white; border: none; border-radius: 5px; padding: 10px; cursor: pointer; font-size: 14px;">📋 Copiar e Fechar</button>
-    </div>
-
-    <div style="margin-top: 15px; padding: 10px; background: #e8f4fd; border-radius: 5px; font-size: 12px; color: #0056b3;">
-      💡 <strong>Dica:</strong> O URL é atualizado automaticamente ao navegar. Use "Recapturar Dados" para atualizar login/modelo/aros.
+    <div style="display: flex; gap: 8px; margin-top: 12px;">
+      <button id="recapturar-dados" style="flex: 1; background: transparent; color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 10px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s;">Recapturar</button>
+      <button id="copiar-dados" style="flex: 2; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 10px; padding: 10px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; box-shadow: 0 2px 8px rgba(99,102,241,0.3);">Copiar e Fechar</button>
     </div>
   `;
 
@@ -504,12 +514,43 @@ function mostrarPopup() {
     });
   });
 
-  document.getElementById('fechar-popup').addEventListener('click', () => {
-    container.remove(); // Apenas fecha o popup, não limpa os dados da sessão
+  const fecharBtn = document.getElementById('fechar-popup');
+  fecharBtn.addEventListener('click', () => {
+    container.remove();
+  });
+  fecharBtn.addEventListener('mouseenter', () => {
+    fecharBtn.style.background = 'rgba(239,68,68,0.2)';
+    fecharBtn.style.color = '#f87171';
+    fecharBtn.style.borderColor = 'rgba(239,68,68,0.4)';
+  });
+  fecharBtn.addEventListener('mouseleave', () => {
+    fecharBtn.style.background = 'transparent';
+    fecharBtn.style.color = 'rgba(255,255,255,0.4)';
+    fecharBtn.style.borderColor = 'rgba(255,255,255,0.12)';
+  });
+
+  const recapturarBtn = document.getElementById('recapturar-dados');
+  recapturarBtn.addEventListener('mouseenter', () => {
+    recapturarBtn.style.background = 'rgba(255,255,255,0.08)';
+    recapturarBtn.style.color = 'rgba(255,255,255,0.9)';
+  });
+  recapturarBtn.addEventListener('mouseleave', () => {
+    recapturarBtn.style.background = 'transparent';
+    recapturarBtn.style.color = 'rgba(255,255,255,0.6)';
+  });
+
+  const copiarBtn = document.getElementById('copiar-dados');
+  copiarBtn.addEventListener('mouseenter', () => {
+    copiarBtn.style.boxShadow = '0 4px 16px rgba(99,102,241,0.45)';
+    copiarBtn.style.transform = 'translateY(-1px)';
+  });
+  copiarBtn.addEventListener('mouseleave', () => {
+    copiarBtn.style.boxShadow = '0 2px 8px rgba(99,102,241,0.3)';
+    copiarBtn.style.transform = 'translateY(0)';
   });
 
   // --- NOVO EVENTO PARA RECAPTURAR DADOS ---
-  document.getElementById('recapturar-dados').addEventListener('click', () => {
+  recapturarBtn.addEventListener('click', () => {
     const popupOverlay = document.getElementById('extensao-popup-overlay');
     if (popupOverlay) {
       popupOverlay.remove();
@@ -521,7 +562,7 @@ function mostrarPopup() {
   });
 
 
-  document.getElementById('copiar-dados').addEventListener('click', () => {
+  copiarBtn.addEventListener('click', () => {
     const dadosParaCopiar = coletarDadosDaInterface(dados);
     const textoFormatado = formatarTextoParaCopia(dadosParaCopiar);
 
@@ -608,15 +649,17 @@ function mostrarNotificacao(mensagem, tipo = 'success') {
   notificacao.style.cssText = `
     position: fixed;
     top: 20px;
-    right: 370px;
-    background: ${tipo === 'success' ? '#4CAF50' : '#f44336'};
+    right: 360px;
+    background: ${tipo === 'success' ? 'rgba(99,102,241,0.95)' : 'rgba(239,68,68,0.95)'};
     color: white;
-    padding: 15px 20px;
-    border-radius: 5px;
+    padding: 10px 16px;
+    border-radius: 10px;
     z-index: 10001;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    backdrop-filter: blur(8px);
     opacity: 0;
     transform: translateY(-20px);
     transition: all 0.3s ease;
