@@ -641,13 +641,6 @@ function mostrarPopup() {
           <option value="">Carregando...</option>
         </select>
       </div>
-      <div style="margin-bottom: 14px;">
-        <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">RESPONSÁVEL</label>
-        <select id="enviar-responsavel" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none; cursor: pointer;">
-          <option value="">Selecione...</option>
-          ${RESPONSAVEIS_FEFRELLO.map(r => `<option value="${r}">${r}</option>`).join('')}
-        </select>
-      </div>
       <div style="display: flex; gap: 8px;">
         <button id="voltar-enviar-card" style="flex: 0 0 auto; background: transparent; color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 14px; cursor: pointer; font-size: 11px; font-weight: 500; transition: all 0.2s;">Voltar</button>
         <button id="confirmar-enviar-card" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 10px; padding: 10px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; box-shadow: 0 2px 8px rgba(16,185,129,0.3);">Enviar para o Fefrello</button>
@@ -920,7 +913,6 @@ function mostrarPopup() {
 
       // Carregar colunas no select da tela de envio
       const selectColuna = document.getElementById('enviar-coluna');
-      const selectResponsavel = document.getElementById('enviar-responsavel');
       selectColuna.innerHTML = '<option value="">Carregando...</option>';
 
       try {
@@ -936,11 +928,6 @@ function mostrarPopup() {
       } catch (e) {
         selectColuna.innerHTML = '<option value="">Erro ao carregar</option>';
         mostrarNotificacao('Erro ao carregar colunas: ' + e.message, 'error');
-      }
-
-      // Pré-selecionar responsável da config
-      if (config.responsible) {
-        selectResponsavel.value = config.responsible;
       }
     });
   }
@@ -972,7 +959,7 @@ function mostrarPopup() {
     confirmarEnviarBtn.addEventListener('click', async () => {
       const config = await carregarConfigFefrello();
       const columnId = document.getElementById('enviar-coluna').value;
-      const responsible = document.getElementById('enviar-responsavel').value;
+      const responsible = config.responsible || '';
 
       if (!columnId) {
         mostrarNotificacao('Selecione a lista', 'error');
