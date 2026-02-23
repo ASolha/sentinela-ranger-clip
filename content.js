@@ -239,21 +239,17 @@ function inserirSimboloNoCursor(campo, simbolo) {
 }
 
 function formatarTextoPrimeiraMaiuscula(texto) {
-  const partes = texto.split(' - ');
-  if (partes.length < 2) return texto;
+  if (!texto || !texto.trim()) return texto;
 
-  const textoParaFormatar = partes[1];
-  const textoFormatado = textoParaFormatar.toLowerCase()
+  return texto.toLowerCase()
     .split(' ')
     .map(palavra => palavra.charAt(0).toUpperCase() + palavra.slice(1))
     .join(' ');
-
-  return `${partes[0]} - ${textoFormatado}`;
 }
 
 function criarBotoesSimbolos() {
   return `
-    <div style="display: flex; gap: 6px; margin-bottom: 12px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.06);">
+    <div style="display: flex; gap: 6px;">
       <button id="btn-coracao" type="button" style="width: 32px; height: 32px; background: transparent; color: #f472b6; border: 1px solid rgba(244,114,182,0.3); border-radius: 50%; cursor: pointer; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; justify-content: center;" title="Inserir coração">♥</button>
       <button id="btn-infinito" type="button" style="width: 32px; height: 32px; background: transparent; color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); border-radius: 50%; cursor: pointer; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; justify-content: center;" title="Inserir infinito">∞</button>
       <button id="btn-formatar-tudo" type="button" style="width: 32px; height: 32px; background: transparent; color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.15); border-radius: 50%; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center;" title="Formatar todos os textos">Aa</button>
@@ -367,17 +363,16 @@ function criarInterfaceAro(aro, index, isAvulso = false) {
     html += `</div>`;
   }
 
-  html += `<div style="display: flex; gap: 8px;">`;
-  html += `<div style="flex: 1;">
+  html += `<div style="margin-bottom: 5px;">
     <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">ARO</label>
     <input type="text" id="campo-aro-${index}" value="${aro.numero}" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
   </div>`;
-  html += `<div style="flex: 1; position: relative;">
+  html += `<div style="position: relative;">
     <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">DADOS</label>
     <input type="text" id="campo-valor-${index}" value="" style="width: 100%; padding: 7px 30px 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;" placeholder="Dados...">
-    <button class="btn-formatar" data-target="campo-valor-${index}" style="position: absolute; right: 4px; top: 20px; width: 24px; height: 24px; background: transparent; color: rgba(255,255,255,0.35); border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Formatar texto">Aa</button>
+    <button class="btn-formatar" data-target="campo-valor-${index}" style="position: absolute; right: 4px; bottom: 4px; width: 24px; height: 24px; background: transparent; color: rgba(255,255,255,0.35); border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Formatar texto">Aa</button>
   </div>`;
-  html += `</div></div>`;
+  html += `</div>`;
 
   return html;
 }
@@ -422,30 +417,26 @@ function mostrarPopup() {
     arosHTML = `
       <div style="margin-bottom: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.04);">
         <span style="display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; letter-spacing: 1px; color: white; background: #6366f1; margin-bottom: 8px; text-transform: uppercase;">MASC</span>
-        <div style="display: flex; gap: 8px;">
-          <div style="flex: 1;">
-            <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">ARO</label>
-            <input type="text" id="campo-aro-0" value="" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
-          </div>
-          <div style="flex: 1; position: relative;">
-            <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">DADOS</label>
-            <input type="text" id="campo-valor-0" value="" style="width: 100%; padding: 7px 30px 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;" placeholder="Dados...">
-            <button class="btn-formatar" data-target="campo-valor-0" style="position: absolute; right: 4px; top: 20px; width: 24px; height: 24px; background: transparent; color: rgba(255,255,255,0.35); border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Formatar texto">Aa</button>
-          </div>
+        <div style="margin-bottom: 5px;">
+          <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">ARO</label>
+          <input type="text" id="campo-aro-0" value="" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
+        </div>
+        <div style="position: relative;">
+          <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">DADOS</label>
+          <input type="text" id="campo-valor-0" value="" style="width: 100%; padding: 7px 30px 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;" placeholder="Dados...">
+          <button class="btn-formatar" data-target="campo-valor-0" style="position: absolute; right: 4px; bottom: 4px; width: 24px; height: 24px; background: transparent; color: rgba(255,255,255,0.35); border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Formatar texto">Aa</button>
         </div>
       </div>
       <div style="margin-bottom: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.04);">
         <span style="display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; letter-spacing: 1px; color: white; background: #ec4899; margin-bottom: 8px; text-transform: uppercase;">FEM</span>
-        <div style="display: flex; gap: 8px;">
-          <div style="flex: 1;">
-            <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">ARO</label>
-            <input type="text" id="campo-aro-1" value="" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
-          </div>
-          <div style="flex: 1; position: relative;">
-            <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">DADOS</label>
-            <input type="text" id="campo-valor-1" value="" style="width: 100%; padding: 7px 30px 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;" placeholder="Dados...">
-            <button class="btn-formatar" data-target="campo-valor-1" style="position: absolute; right: 4px; top: 20px; width: 24px; height: 24px; background: transparent; color: rgba(255,255,255,0.35); border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Formatar texto">Aa</button>
-          </div>
+        <div style="margin-bottom: 5px;">
+          <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">ARO</label>
+          <input type="text" id="campo-aro-1" value="" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;">
+        </div>
+        <div style="position: relative;">
+          <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">DADOS</label>
+          <input type="text" id="campo-valor-1" value="" style="width: 100%; padding: 7px 30px 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none;" placeholder="Dados...">
+          <button class="btn-formatar" data-target="campo-valor-1" style="position: absolute; right: 4px; bottom: 4px; width: 24px; height: 24px; background: transparent; color: rgba(255,255,255,0.35); border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Formatar texto">Aa</button>
         </div>
       </div>
     `;
@@ -466,15 +457,10 @@ function mostrarPopup() {
         background: rgba(255,255,255,0.08) !important;
       }
     </style>
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.08);">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="color: #fff; font-size: 15px; font-weight: 600;">Sentinela Ranger</span>
-        <span style="background: #6366f1; color: #fff; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; padding: 2px 8px; border-radius: 20px;">CLIP</span>
-      </div>
-      <button id="fechar-popup" style="width: 28px; height: 28px; background: transparent; color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.12); border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">✕</button>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      ${criarBotoesSimbolos()}
+      <button id="fechar-popup" style="width: 28px; height: 28px; background: transparent; color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.12); border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0;">✕</button>
     </div>
-
-    ${criarBotoesSimbolos()}
 
     <div style="margin-bottom: 10px;">
       <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">LOGIN</label>
