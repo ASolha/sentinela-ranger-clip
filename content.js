@@ -174,6 +174,8 @@ const BUTTON_POSITION_STORAGE_KEY = 'extensao_button_position';
 const FEFRELLO_API_BASE = 'https://southamerica-east1-fefrello.cloudfunctions.net';
 const FEFRELLO_API_KEY = '708a34771f2659594502ed4b74cd634819a297d37e3fb2fa3cafdf826c286f16';
 const FEFRELLO_CONFIG_KEY = 'extensao_fefrello_config';
+const FEFRELLO_CACHE_KEY = 'extensao_fefrello_cache';
+const FEFRELLO_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 horas
 const RESPONSAVEIS_FEFRELLO = ['Solha', 'Ti', 'Vitão', 'Brunão', 'Fe'];
 
 async function fefrelloFetch(endpoint, options = {}) {
@@ -190,14 +192,62 @@ async function fefrelloFetch(endpoint, options = {}) {
   return json;
 }
 
-async function carregarBoards() {
-  const res = await fefrelloFetch('/listBoards');
-  return res.data;
+// --- Cache de boards e colunas (24h) ---
+function salvarCache(data) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ [FEFRELLO_CACHE_KEY]: { ...data, timestamp: Date.now() } }, resolve);
+  });
 }
 
-async function carregarColunas(boardId) {
+function carregarCache() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([FEFRELLO_CACHE_KEY], (result) => {
+      const cache = result[FEFRELLO_CACHE_KEY];
+      if (cache && (Date.now() - cache.timestamp) < FEFRELLO_CACHE_TTL) {
+        resolve(cache);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+async function carregarBoards(forceRefresh = false) {
+  if (!forceRefresh) {
+    const cache = await carregarCache();
+    if (cache && cache.boards) return cache.boards;
+  }
+  const res = await fefrelloFetch('/listBoards');
+  const boards = res.data;
+  // Salvar no cache
+  const cacheAtual = await carregarCache() || {};
+  await salvarCache({ ...cacheAtual, boards, columns: cacheAtual.columns || {} });
+  return boards;
+}
+
+async function carregarColunas(boardId, forceRefresh = false) {
+  if (!forceRefresh) {
+    const cache = await carregarCache();
+    if (cache && cache.columns && cache.columns[boardId]) return cache.columns[boardId];
+  }
   const res = await fefrelloFetch(`/listColumns?boardId=${boardId}`);
-  return res.data;
+  const colunas = res.data;
+  // Salvar no cache
+  const cacheAtual = await carregarCache() || {};
+  const columns = cacheAtual.columns || {};
+  columns[boardId] = colunas;
+  await salvarCache({ ...cacheAtual, columns });
+  return colunas;
+}
+
+async function forcarAtualizacaoCache() {
+  const boards = await carregarBoards(true);
+  const columns = {};
+  for (const board of boards) {
+    columns[board.id] = await carregarColunas(board.id, true);
+  }
+  await salvarCache({ boards, columns });
+  return { boards, columns };
 }
 
 async function criarCardFefrello(boardId, columnId, title, description, responsible) {
@@ -575,7 +625,33 @@ function mostrarPopup() {
           ${RESPONSAVEIS_FEFRELLO.map(r => `<option value="${r}">${r}</option>`).join('')}
         </select>
       </div>
-      <button id="salvar-config-fefrello" style="width: 100%; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 10px; padding: 10px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; box-shadow: 0 2px 8px rgba(99,102,241,0.3);">Salvar Configurações</button>
+      <div style="display: flex; gap: 8px;">
+        <button id="atualizar-cache-fefrello" style="flex: 1; background: transparent; color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 10px; cursor: pointer; font-size: 11px; font-weight: 500; transition: all 0.2s;">Atualizar Listas</button>
+        <button id="salvar-config-fefrello" style="flex: 2; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; border: none; border-radius: 10px; padding: 10px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; box-shadow: 0 2px 8px rgba(99,102,241,0.3);">Salvar Configurações</button>
+      </div>
+    </div>
+
+    <div id="view-enviar-card" style="display: none;">
+      <div style="margin-bottom: 14px;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.6);">Enviar para o Fefrello</span>
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">LISTA (COLUNA)</label>
+        <select id="enviar-coluna" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none; cursor: pointer;">
+          <option value="">Carregando...</option>
+        </select>
+      </div>
+      <div style="margin-bottom: 14px;">
+        <label style="display: block; margin-bottom: 3px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4);">RESPONSÁVEL</label>
+        <select id="enviar-responsavel" style="width: 100%; padding: 7px 8px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 13px; box-sizing: border-box; outline: none; cursor: pointer;">
+          <option value="">Selecione...</option>
+          ${RESPONSAVEIS_FEFRELLO.map(r => `<option value="${r}">${r}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button id="voltar-enviar-card" style="flex: 0 0 auto; background: transparent; color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 14px; cursor: pointer; font-size: 11px; font-weight: 500; transition: all 0.2s;">Voltar</button>
+        <button id="confirmar-enviar-card" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 10px; padding: 10px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; box-shadow: 0 2px 8px rgba(16,185,129,0.3);">Enviar para o Fefrello</button>
+      </div>
     </div>
   `;
 
@@ -797,7 +873,26 @@ function mostrarPopup() {
     });
   }
 
-  // --- CRIAR CARD FEFRELLO ---
+  // --- BOTÃO ATUALIZAR CACHE ---
+  const atualizarCacheBtn = document.getElementById('atualizar-cache-fefrello');
+  if (atualizarCacheBtn) {
+    atualizarCacheBtn.addEventListener('click', async () => {
+      atualizarCacheBtn.textContent = 'Atualizando...';
+      atualizarCacheBtn.disabled = true;
+      try {
+        await forcarAtualizacaoCache();
+        mostrarNotificacao('Listas atualizadas!');
+        await carregarDadosConfig(); // Recarrega os selects
+      } catch (e) {
+        mostrarNotificacao('Erro ao atualizar: ' + e.message, 'error');
+      }
+      atualizarCacheBtn.textContent = 'Atualizar Listas';
+      atualizarCacheBtn.disabled = false;
+    });
+  }
+
+  // --- CRIAR CARD FEFRELLO (abre tela intermediária) ---
+  const viewEnviarCard = document.getElementById('view-enviar-card');
   const criarCardBtn = document.getElementById('criar-card-fefrello');
   if (criarCardBtn) {
     criarCardBtn.addEventListener('mouseenter', () => {
@@ -811,8 +906,76 @@ function mostrarPopup() {
 
     criarCardBtn.addEventListener('click', async () => {
       const config = await carregarConfigFefrello();
-      if (!config || !config.boardId || !config.columnId) {
+      if (!config || !config.boardId) {
         mostrarNotificacao('Configure o Fefrello primeiro (⚙)', 'error');
+        return;
+      }
+
+      // Esconder view principal e footer, mostrar tela de envio
+      const conteudoPrincipal = document.getElementById('conteudo-principal');
+      const footerPrincipal = document.getElementById('footer-principal');
+      if (conteudoPrincipal) conteudoPrincipal.style.display = 'none';
+      if (footerPrincipal) footerPrincipal.style.display = 'none';
+      viewEnviarCard.style.display = 'block';
+
+      // Carregar colunas no select da tela de envio
+      const selectColuna = document.getElementById('enviar-coluna');
+      const selectResponsavel = document.getElementById('enviar-responsavel');
+      selectColuna.innerHTML = '<option value="">Carregando...</option>';
+
+      try {
+        const colunas = await carregarColunas(config.boardId);
+        selectColuna.innerHTML = '<option value="">Selecione a lista...</option>';
+        colunas.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = c.title;
+          if (config.columnId === c.id) opt.selected = true;
+          selectColuna.appendChild(opt);
+        });
+      } catch (e) {
+        selectColuna.innerHTML = '<option value="">Erro ao carregar</option>';
+        mostrarNotificacao('Erro ao carregar colunas: ' + e.message, 'error');
+      }
+
+      // Pré-selecionar responsável da config
+      if (config.responsible) {
+        selectResponsavel.value = config.responsible;
+      }
+    });
+  }
+
+  // Botão Voltar da tela de envio
+  const voltarEnviarBtn = document.getElementById('voltar-enviar-card');
+  if (voltarEnviarBtn) {
+    voltarEnviarBtn.addEventListener('click', () => {
+      viewEnviarCard.style.display = 'none';
+      const conteudoPrincipal = document.getElementById('conteudo-principal');
+      const footerPrincipal = document.getElementById('footer-principal');
+      if (conteudoPrincipal) conteudoPrincipal.style.display = 'block';
+      if (footerPrincipal) footerPrincipal.style.display = 'flex';
+    });
+  }
+
+  // Botão Confirmar envio
+  const confirmarEnviarBtn = document.getElementById('confirmar-enviar-card');
+  if (confirmarEnviarBtn) {
+    confirmarEnviarBtn.addEventListener('mouseenter', () => {
+      confirmarEnviarBtn.style.boxShadow = '0 4px 16px rgba(16,185,129,0.45)';
+      confirmarEnviarBtn.style.transform = 'translateY(-1px)';
+    });
+    confirmarEnviarBtn.addEventListener('mouseleave', () => {
+      confirmarEnviarBtn.style.boxShadow = '0 2px 8px rgba(16,185,129,0.3)';
+      confirmarEnviarBtn.style.transform = 'translateY(0)';
+    });
+
+    confirmarEnviarBtn.addEventListener('click', async () => {
+      const config = await carregarConfigFefrello();
+      const columnId = document.getElementById('enviar-coluna').value;
+      const responsible = document.getElementById('enviar-responsavel').value;
+
+      if (!columnId) {
+        mostrarNotificacao('Selecione a lista', 'error');
         return;
       }
 
@@ -821,21 +984,21 @@ function mostrarPopup() {
       const titulo = document.getElementById('campo-login')?.value || 'Sem título';
 
       // Feedback visual
-      criarCardBtn.disabled = true;
-      const textoOriginal = criarCardBtn.textContent;
-      criarCardBtn.textContent = 'Criando...';
-      criarCardBtn.style.opacity = '0.7';
+      confirmarEnviarBtn.disabled = true;
+      const textoOriginal = confirmarEnviarBtn.textContent;
+      confirmarEnviarBtn.textContent = 'Enviando...';
+      confirmarEnviarBtn.style.opacity = '0.7';
 
       try {
-        await criarCardFefrello(config.boardId, config.columnId, titulo, descricao, config.responsible);
+        await criarCardFefrello(config.boardId, columnId, titulo, descricao, responsible);
         mostrarNotificacao('Card criado com sucesso!');
         limparDadosSalvos();
         container.remove();
       } catch (e) {
         mostrarNotificacao('Erro ao criar card: ' + e.message, 'error');
-        criarCardBtn.disabled = false;
-        criarCardBtn.textContent = textoOriginal;
-        criarCardBtn.style.opacity = '1';
+        confirmarEnviarBtn.disabled = false;
+        confirmarEnviarBtn.textContent = textoOriginal;
+        confirmarEnviarBtn.style.opacity = '1';
       }
     });
   }
